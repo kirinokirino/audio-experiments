@@ -1,0 +1,13 @@
+[package]
+name = "audio"
+version = "0.1.0"
+edition = "2021"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+hound = "3.5.0"
+
+[target.'cfg(any(target_os = "linux", target_os = "dragonfly", target_os = "freebsd"))'.dependencies]
+alsa-sys = "0.3.1"
+libc = "0.2"
