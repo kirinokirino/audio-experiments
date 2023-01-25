@@ -1,33 +1,163 @@
-use hound;
+use hound::{self, read_wave_header};
 use std::f32::consts::PI;
 use std::i16;
 
+mod consts {
+    pub const DEVICES: &[&str] = &["default\0", "pipewire\0"];
+    pub const SAMPLE_RATE: u32 = 44100;
+    pub const CHANNELS: u16 = 2;
+    pub const PCM_BUFFER_SIZE: ::std::os::raw::c_ulong = 4096;
+}
+
 fn main() {
     let mut audio = AudioContext::new();
-    std::thread::sleep(std::time::Duration::from_secs(5));
+    let mut random = std::time::Instant::now().elapsed().as_nanos();
+
+    for _ in (0..440) {
+        audio.senders[0].send(SynthEvent::pitch((random % 660 + 220) as f32));
+        std::thread::sleep(std::time::Duration::from_millis(10));
+        (random, _) = random.overflowing_mul(283457);
+    }
+    std::thread::sleep(std::time::Duration::from_secs(1));
+    /*
+    let mut reader = hound::WavReader::open("sine.wav").unwrap();
+    dbg!(reader.spec(), reader.duration());
+
     let spec = hound::WavSpec {
-        channels: 1,
-        sample_rate: 44100,
-        bits_per_sample: 16,
-        sample_format: hound::SampleFormat::Int,
+        channels: consts::CHANNELS,
+        sample_rate: consts::SAMPLE_RATE,
+        bits_per_sample: 32,
+        sample_format: hound::SampleFormat::Float,
     };
     let mut writer = hound::WavWriter::create("sine.wav", spec).unwrap();
-    for t in (0..44100).map(|x| x as f32 / 44100.0) {
-        let sample = (t * 440.0 * 2.0 * PI).sin();
-        let amplitude = i16::MAX as f32 * 0.1;
-        writer.write_sample((sample * amplitude) as i16).unwrap();
+
+    let buffer: Vec<f32> = (0..11)
+        .map(|i| fill_buffer(i * consts::PCM_BUFFER_SIZE as usize))
+        .flatten()
+        .collect();
+
+    for (i, sample) in buffer.into_iter().enumerate() {
+        let channel = i % consts::CHANNELS as usize;
+        match channel {
+            // LEFT
+            0 => writer.write_sample(sample * 1.0).unwrap(),
+            // RIGHT
+            1 => writer.write_sample(sample * 1.0).unwrap(),
+            _ => unreachable!(),
+        }
     }
+    writer.finalize().unwrap();
+    */
 }
 
 // roughly based on http://equalarea.com/paul/alsa-audio.html
 use alsa_sys as sys;
 use std::sync::mpsc;
 
-mod consts {
-    pub const DEVICES: &[&str] = &["default\0", "pipewire\0"];
-    pub const RATE: u32 = 44100;
-    pub const CHANNELS: u32 = 2;
-    pub const PCM_BUFFER_SIZE: ::std::os::raw::c_ulong = 4096;
+struct Synthesizer {
+    amplitude: f32,
+    pitch: f32,
+    pub buffer: [f32; (consts::PCM_BUFFER_SIZE as usize * consts::CHANNELS as usize)],
+    events: mpsc::Receiver<SynthEvent>,
+}
+
+impl Synthesizer {
+    pub fn new(reciever: mpsc::Receiver<SynthEvent>) -> Self {
+        Synthesizer {
+            amplitude: 0.01,
+            pitch: 440.0,
+            buffer: [0.0; consts::PCM_BUFFER_SIZE as usize * consts::CHANNELS as usize],
+            events: reciever,
+        }
+    }
+
+    pub fn handle_events(&mut self) {
+        while let Ok(event) = self.events.try_recv() {
+            match event {
+                SynthEvent::amplitude(amplitude) => self.amplitude = amplitude,
+                SynthEvent::pitch(pitch) => self.pitch = pitch,
+            }
+        }
+    }
+
+    pub fn fill_buffer(&mut self, time: usize) {
+        self.buffer = (0..consts::PCM_BUFFER_SIZE as usize * 2)
+            .map(|i| {
+                match i {
+                    i if i % 2 == 0 => {
+                        // left channel
+                        let t = (time + (i / 2)) as f32 / consts::SAMPLE_RATE as f32;
+                        let sample = (t * self.pitch * 2.0 * PI).sin();
+                        let amplitude = self.amplitude;
+                        (sample * amplitude).min(0.1).max(-0.1)
+                    }
+                    i if i % 2 == 1 => {
+                        // right channel
+                        let t = (time + ((i - 1) / 2)) as f32 / consts::SAMPLE_RATE as f32;
+                        let sample = (t * self.pitch * 2.0 * PI).cos();
+                        let amplitude = self.amplitude;
+                        (sample * amplitude).min(0.1).max(-0.1)
+                    }
+                    _ => unreachable!(),
+                }
+            })
+            .collect::<Vec<f32>>()
+            .try_into()
+            .unwrap()
+    }
+}
+
+unsafe fn audio_thread(mut synth: Synthesizer) {
+    synth.fill_buffer(0);
+    let mut time = 0u64;
+
+    let pcm_handle = setup_pcm_device();
+
+    loop {
+        synth.handle_events();
+        // Wait for PCM to be ready for next write (no timeout)
+        if sys::snd_pcm_wait(pcm_handle, -1) < 0 {
+            panic!("PCM device is not ready");
+        }
+
+        // // find out how much space is available for playback data
+        // teoretically it should reduce latency - we will fill a minimum amount of
+        // frames just to keep alsa busy and will be able to mix some fresh sounds
+        // it does, but also randmly panics sometimes
+
+        // let frames_to_deliver = sys::snd_pcm_avail_update(pcm_handle);
+        // println!("{}", frames_to_deliver);
+        // let frames_to_deliver = if frames_to_deliver > consts::PCM_BUFFER_SIZE as _ {
+        //     consts::PCM_BUFFER_SIZE as i64
+        // } else {
+        //     frames_to_deliver
+        // };
+
+        let frames_to_deliver = consts::PCM_BUFFER_SIZE as i64;
+
+        // ask mixer to fill the buffer
+        // TODO: mixer.fill_audio_buffer(&mut buffer, frames_to_deliver as usize);
+        synth.fill_buffer(time as usize);
+
+        // send filled buffer back to alsa
+        let frames_writen = sys::snd_pcm_writei(
+            pcm_handle,
+            synth.buffer.as_ptr() as *const _,
+            frames_to_deliver as _,
+        );
+        if frames_writen == -libc::EPIPE as ::std::os::raw::c_long {
+            println!("Underrun occured: -EPIPE, attempting recover");
+
+            sys::snd_pcm_recover(pcm_handle, frames_writen as _, 0);
+        }
+
+        if frames_writen > 0 && frames_writen != frames_to_deliver as _ {
+            println!("Underrun occured: frames_writen != frames_to_deliver, attempting recover");
+
+            sys::snd_pcm_recover(pcm_handle, frames_writen as _, 0);
+        }
+        time += consts::PCM_BUFFER_SIZE;
+    }
 }
 
 unsafe fn setup_pcm_device() -> *mut sys::snd_pcm_t {
@@ -61,11 +191,11 @@ unsafe fn setup_pcm_device() -> *mut sys::snd_pcm_t {
     if sys::snd_pcm_hw_params_set_buffer_size(pcm_handle, hw_params, consts::PCM_BUFFER_SIZE) < 0 {
         panic!("Cant's set buffer size");
     }
-    if sys::snd_pcm_hw_params_set_channels(pcm_handle, hw_params, consts::CHANNELS) < 0 {
+    if sys::snd_pcm_hw_params_set_channels(pcm_handle, hw_params, consts::CHANNELS.into()) < 0 {
         panic!("Can't set channels number.");
     }
 
-    let mut rate = consts::RATE;
+    let mut rate = consts::SAMPLE_RATE;
     if sys::snd_pcm_hw_params_set_rate_near(pcm_handle, hw_params, &mut rate, std::ptr::null_mut())
         < 0
     {
@@ -113,69 +243,24 @@ unsafe fn setup_pcm_device() -> *mut sys::snd_pcm_t {
     pcm_handle
 }
 
-unsafe fn audio_thread() {
-    let mut buffer: Vec<f32> = (0..consts::PCM_BUFFER_SIZE as usize * 2)
-        .map(|i| {
-            let t = i as f32 / consts::RATE as f32;
-            let sample = (t * 440.0 * 2.0 * PI).sin();
-            let amplitude = 0.01;
-            (sample * amplitude).min(0.1).max(-0.1)
-        })
-        .collect();
+pub struct AudioContext {
+    pub senders: Vec<mpsc::Sender<SynthEvent>>,
+}
 
-    let pcm_handle = setup_pcm_device();
+impl AudioContext {
+    pub fn new() -> Self {
+        let (tx, rx) = mpsc::channel::<SynthEvent>();
+        std::thread::spawn(move || unsafe {
+            audio_thread(Synthesizer::new(rx));
+        });
 
-    loop {
-        // Wait for PCM to be ready for next write (no timeout)
-        if sys::snd_pcm_wait(pcm_handle, -1) < 0 {
-            panic!("PCM device is not ready");
-        }
-
-        // // find out how much space is available for playback data
-        // teoretically it should reduce latency - we will fill a minimum amount of
-        // frames just to keep alsa busy and will be able to mix some fresh sounds
-        // it does, but also randmly panics sometimes
-
-        // let frames_to_deliver = sys::snd_pcm_avail_update(pcm_handle);
-        // println!("{}", frames_to_deliver);
-        // let frames_to_deliver = if frames_to_deliver > consts::PCM_BUFFER_SIZE as _ {
-        //     consts::PCM_BUFFER_SIZE as i64
-        // } else {
-        //     frames_to_deliver
-        // };
-
-        let frames_to_deliver = consts::PCM_BUFFER_SIZE as i64;
-
-        // ask mixer to fill the buffer
-        // TODO: mixer.fill_audio_buffer(&mut buffer, frames_to_deliver as usize);
-
-        // send filled buffer back to alsa
-        let frames_writen = sys::snd_pcm_writei(
-            pcm_handle,
-            buffer.as_ptr() as *const _,
-            frames_to_deliver as _,
-        );
-        if frames_writen == -libc::EPIPE as ::std::os::raw::c_long {
-            println!("Underrun occured: -EPIPE, attempting recover");
-
-            sys::snd_pcm_recover(pcm_handle, frames_writen as _, 0);
-        }
-
-        if frames_writen > 0 && frames_writen != frames_to_deliver as _ {
-            println!("Underrun occured: frames_writen != frames_to_deliver, attempting recover");
-
-            sys::snd_pcm_recover(pcm_handle, frames_writen as _, 0);
-        }
+        let mut senders = Vec::new();
+        senders.push(tx);
+        Self { senders }
     }
 }
 
-pub struct AudioContext {}
-
-impl AudioContext {
-    pub fn new() {
-        // TODO let (mixer_builder, mixer_ctrl) = Mixer::new();
-        std::thread::spawn(move || unsafe {
-            audio_thread();
-        });
-    }
+pub enum SynthEvent {
+    amplitude(f32),
+    pitch(f32),
 }
