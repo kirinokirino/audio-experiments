@@ -1,23 +1,35 @@
-use hound::{self, read_wave_header};
-use std::f32::consts::PI;
-use std::i16;
+use hound;
 
-mod consts {
-    pub const DEVICES: &[&str] = &["default\0", "pipewire\0"];
-    pub const SAMPLE_RATE: u32 = 44100;
-    pub const CHANNELS: u16 = 2;
-    pub const PCM_BUFFER_SIZE: ::std::os::raw::c_ulong = 4096;
-}
+use alsa_sys as sys;
+use std::fs::File;
+use std::io::prelude::*;
+use std::io::{self, BufReader};
+use std::sync::mpsc;
+
+mod synth;
+use synth::{Synth, SynthEvent};
+mod consts;
 
 fn main() {
-    let mut audio = AudioContext::new();
+    let audio = AudioContext::new();
     let mut random = std::time::Instant::now().elapsed().as_nanos();
 
-    for _ in (0..440) {
-        audio.senders[0].send(SynthEvent::pitch((random % 660 + 220) as f32));
-        std::thread::sleep(std::time::Duration::from_millis(10));
+    /*
+    let mut wav = hound::WavReader::open("t.wav").unwrap();
+    const buf_size: usize = (consts::PCM_BUFFER_SIZE as usize * consts::CHANNELS as usize);SynthEvent::Data(
+            wav.samples::<i16>()
+                .take(buf_size)
+                .map(|sample| ((sample.unwrap()) as f32 * 0.01).max(-0.01).min(0.01))
+                .collect::<Vec<f32>>()
+                .try_into()
+                .unwrap(),
+     */
+    for _ in (0..100) {
+        audio.senders[0].send(SynthEvent::Pitch(500.0 + (random % 50) as f32));
+        std::thread::sleep(std::time::Duration::from_millis(20));
         (random, _) = random.overflowing_mul(283457);
     }
+
     std::thread::sleep(std::time::Duration::from_secs(1));
     /*
     let mut reader = hound::WavReader::open("sine.wav").unwrap();
@@ -51,63 +63,8 @@ fn main() {
 }
 
 // roughly based on http://equalarea.com/paul/alsa-audio.html
-use alsa_sys as sys;
-use std::sync::mpsc;
 
-struct Synthesizer {
-    amplitude: f32,
-    pitch: f32,
-    pub buffer: [f32; (consts::PCM_BUFFER_SIZE as usize * consts::CHANNELS as usize)],
-    events: mpsc::Receiver<SynthEvent>,
-}
-
-impl Synthesizer {
-    pub fn new(reciever: mpsc::Receiver<SynthEvent>) -> Self {
-        Synthesizer {
-            amplitude: 0.01,
-            pitch: 440.0,
-            buffer: [0.0; consts::PCM_BUFFER_SIZE as usize * consts::CHANNELS as usize],
-            events: reciever,
-        }
-    }
-
-    pub fn handle_events(&mut self) {
-        while let Ok(event) = self.events.try_recv() {
-            match event {
-                SynthEvent::amplitude(amplitude) => self.amplitude = amplitude,
-                SynthEvent::pitch(pitch) => self.pitch = pitch,
-            }
-        }
-    }
-
-    pub fn fill_buffer(&mut self, time: usize) {
-        self.buffer = (0..consts::PCM_BUFFER_SIZE as usize * 2)
-            .map(|i| {
-                match i {
-                    i if i % 2 == 0 => {
-                        // left channel
-                        let t = (time + (i / 2)) as f32 / consts::SAMPLE_RATE as f32;
-                        let sample = (t * self.pitch * 2.0 * PI).sin();
-                        let amplitude = self.amplitude;
-                        (sample * amplitude).min(0.1).max(-0.1)
-                    }
-                    i if i % 2 == 1 => {
-                        // right channel
-                        let t = (time + ((i - 1) / 2)) as f32 / consts::SAMPLE_RATE as f32;
-                        let sample = (t * self.pitch * 2.0 * PI).cos();
-                        let amplitude = self.amplitude;
-                        (sample * amplitude).min(0.1).max(-0.1)
-                    }
-                    _ => unreachable!(),
-                }
-            })
-            .collect::<Vec<f32>>()
-            .try_into()
-            .unwrap()
-    }
-}
-
-unsafe fn audio_thread(mut synth: Synthesizer) {
+unsafe fn audio_thread(mut synth: Synth) {
     synth.fill_buffer(0);
     let mut time = 0u64;
 
@@ -251,16 +208,11 @@ impl AudioContext {
     pub fn new() -> Self {
         let (tx, rx) = mpsc::channel::<SynthEvent>();
         std::thread::spawn(move || unsafe {
-            audio_thread(Synthesizer::new(rx));
+            audio_thread(Synth::new(rx));
         });
 
         let mut senders = Vec::new();
         senders.push(tx);
         Self { senders }
     }
-}
-
-pub enum SynthEvent {
-    amplitude(f32),
-    pitch(f32),
 }
