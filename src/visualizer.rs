@@ -10,7 +10,7 @@ use speedy2d::{
 use crate::{
     audio::audio_thread,
     consts,
-    synth::{Synth, SynthEvent},
+    synth::{OscType, Synth, SynthEvent},
 };
 
 const AMPLIFY: f32 = 10.0;
@@ -49,6 +49,7 @@ impl App {
         while let Ok(time) = self.time_callback.try_recv() {
             self.time = time
         }
+        self.local_synth.handle_events();
         self.local_synth.fill_buffer(self.time.try_into().unwrap());
         for (wave_idx, wave) in self.waves.iter_mut().enumerate() {
             wave.buffer = self
@@ -110,6 +111,26 @@ impl WindowHandler for App {
         if let Some(key_code) = virtual_key_code {
             match key_code {
                 VirtualKeyCode::Escape => helper.terminate_loop(),
+                VirtualKeyCode::Key1 => {
+                    for sender in &self.event_senders {
+                        sender.send(SynthEvent::OscType(OscType::Sine));
+                    }
+                }
+                VirtualKeyCode::Key2 => {
+                    for sender in &self.event_senders {
+                        sender.send(SynthEvent::OscType(OscType::Triangle));
+                    }
+                }
+                VirtualKeyCode::Key3 => {
+                    for sender in &self.event_senders {
+                        sender.send(SynthEvent::OscType(OscType::Sawtooth));
+                    }
+                }
+                VirtualKeyCode::Key4 => {
+                    for sender in &self.event_senders {
+                        sender.send(SynthEvent::OscType(OscType::Square));
+                    }
+                }
                 key => println!("Key: {key:?}, scancode: {scancode}"),
             }
         }
