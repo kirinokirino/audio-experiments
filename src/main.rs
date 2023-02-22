@@ -1,65 +1,28 @@
-use hound;
-
 use alsa_sys as sys;
-use std::fs::File;
-use std::io::prelude::*;
-use std::io::{self, BufReader};
+use dasp_ring_buffer::Fixed;
 use std::sync::mpsc;
 
 mod synth;
 use synth::{Synth, SynthEvent};
-mod consts;
+
+mod consts {
+    pub const DEVICES: &[&str] = &["default\0", "pipewire\0"];
+    pub const SAMPLE_RATE: u32 = 44100;
+    pub const CHANNELS: u16 = 2;
+    pub const PCM_BUFFER_SIZE: ::std::os::raw::c_ulong = 4096 / 8;
+}
 
 fn main() {
     let audio = AudioContext::new();
-    let mut random = std::time::Instant::now().elapsed().as_nanos();
 
-    /*
-    let mut wav = hound::WavReader::open("t.wav").unwrap();
-    const buf_size: usize = (consts::PCM_BUFFER_SIZE as usize * consts::CHANNELS as usize);SynthEvent::Data(
-            wav.samples::<i16>()
-                .take(buf_size)
-                .map(|sample| ((sample.unwrap()) as f32 * 0.01).max(-0.01).min(0.01))
-                .collect::<Vec<f32>>()
-                .try_into()
-                .unwrap(),
-     */
-    for _ in (0..100) {
-        audio.senders[0].send(SynthEvent::Pitch(500.0 + (random % 50) as f32));
+    for _ in 0..100 {
+        if let Err(err) = audio.senders[0].send(SynthEvent::Pitch(440.0)) {
+            panic!("{err:?}");
+        }
         std::thread::sleep(std::time::Duration::from_millis(20));
-        (random, _) = random.overflowing_mul(283457);
     }
 
     std::thread::sleep(std::time::Duration::from_secs(1));
-    /*
-    let mut reader = hound::WavReader::open("sine.wav").unwrap();
-    dbg!(reader.spec(), reader.duration());
-
-    let spec = hound::WavSpec {
-        channels: consts::CHANNELS,
-        sample_rate: consts::SAMPLE_RATE,
-        bits_per_sample: 32,
-        sample_format: hound::SampleFormat::Float,
-    };
-    let mut writer = hound::WavWriter::create("sine.wav", spec).unwrap();
-
-    let buffer: Vec<f32> = (0..11)
-        .map(|i| fill_buffer(i * consts::PCM_BUFFER_SIZE as usize))
-        .flatten()
-        .collect();
-
-    for (i, sample) in buffer.into_iter().enumerate() {
-        let channel = i % consts::CHANNELS as usize;
-        match channel {
-            // LEFT
-            0 => writer.write_sample(sample * 1.0).unwrap(),
-            // RIGHT
-            1 => writer.write_sample(sample * 1.0).unwrap(),
-            _ => unreachable!(),
-        }
-    }
-    writer.finalize().unwrap();
-    */
 }
 
 // roughly based on http://equalarea.com/paul/alsa-audio.html
@@ -95,13 +58,15 @@ unsafe fn audio_thread(mut synth: Synth) {
         // ask mixer to fill the buffer
         // TODO: mixer.fill_audio_buffer(&mut buffer, frames_to_deliver as usize);
         synth.fill_buffer(time as usize);
-
+        let (first, data) = synth.buffer.into_raw_parts();
         // send filled buffer back to alsa
         let frames_writen = sys::snd_pcm_writei(
             pcm_handle,
-            synth.buffer.as_ptr() as *const _,
+            data.as_ptr() as *const _,
             frames_to_deliver as _,
         );
+        synth.buffer = unsafe { Fixed::from_raw_parts_unchecked(first, data) };
+
         if frames_writen == -libc::EPIPE as ::std::os::raw::c_long {
             println!("Underrun occured: -EPIPE, attempting recover");
 
