@@ -48,8 +48,8 @@ impl Synth {
                 let sample_idx = time + (i / channels);
                 let time = time_from_sample_idx(sample_idx);
                 let sample = match channel {
-                    0 => sawtooth(time, self.pitch),
-                    _ => sine(time, self.pitch),
+                    0 => sine(time, self.pitch),
+                    _ => square(time, self.pitch),
                 };
 
                 limit(sample * self.amplitude, 0.1)
@@ -70,7 +70,23 @@ fn sine(time: f32, pitch: f32) -> f32 {
 
 fn sawtooth(time: f32, pitch: f32) -> f32 {
     let cycle = time * pitch;
-    ((cycle + 0.99) * 0.5).fract() * 2.0 - 1.0
+    cycle.fract() * 2.0 - 1.0
+}
+
+fn triangle(time: f32, pitch: f32) -> f32 {
+    let cycle = time * pitch;
+    (cycle.fract() * 2.0 - 1.0).abs() * 2.0 - 1.0
+}
+
+fn square(time: f32, pitch: f32) -> f32 {
+    let cycle = time * pitch;
+    round(cycle.fract()) * 2.0 - 1.0
+}
+
+fn round(mut x: f32) -> f32 {
+    x += 12582912.0;
+    x -= 12582912.0;
+    x
 }
 
 fn limit(sample: f32, to: f32) -> f32 {

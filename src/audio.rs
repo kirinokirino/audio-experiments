@@ -163,10 +163,8 @@ impl AudioContext {
             audio_thread(Synth::new(rx), time_tx);
         });
 
-        let mut senders = Vec::new();
-        senders.push(tx);
         Self {
-            senders,
+            senders: vec![tx],
             time_callback: time_rx,
         }
     }
