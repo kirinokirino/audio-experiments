@@ -47,7 +47,11 @@ impl Synth {
                 let channel = i % channels;
                 let sample_idx = time + (i / channels);
                 let time = time_from_sample_idx(sample_idx);
-                let sample = sine(time, self.pitch);
+                let sample = match channel {
+                    0 => sawtooth(time, self.pitch),
+                    _ => sine(time, self.pitch),
+                };
+
                 limit(sample * self.amplitude, 0.1)
             })
             .collect::<Vec<f32>>()
@@ -62,6 +66,11 @@ fn time_from_sample_idx(sample_idx: usize) -> f32 {
 
 fn sine(time: f32, pitch: f32) -> f32 {
     (time * pitch * 2.0 * PI).sin()
+}
+
+fn sawtooth(time: f32, pitch: f32) -> f32 {
+    let cycle = time * pitch;
+    ((cycle + 0.99) * 0.5).fract() * 2.0 - 1.0
 }
 
 fn limit(sample: f32, to: f32) -> f32 {
