@@ -1,5 +1,5 @@
 mod audio;
-use audio::AudioContext;
+
 mod synth;
 
 mod consts {

@@ -9,13 +9,14 @@ use speedy2d::{
 
 use crate::{
     audio::audio_thread,
+    consts,
     synth::{Synth, SynthEvent},
 };
 
 const AMPLIFY: f32 = 10.0;
 pub struct App {
     viewport: UVec2,
-    waves: [Waveform; 2],
+    waves: Vec<Waveform>,
     event_senders: Vec<Sender<SynthEvent>>,
     local_synth: Synth,
     time_callback: Receiver<u64>,
@@ -25,22 +26,19 @@ pub struct App {
 impl App {
     pub fn new(window_size: UVec2) -> Self {
         let (time_tx, time_rx) = mpsc::channel::<u64>();
-        let mut event_senders = Vec::new();
         let (tx, rx) = mpsc::channel::<SynthEvent>();
         std::thread::spawn(move || unsafe {
             audio_thread(Synth::new(rx), time_tx);
         });
-        event_senders.push(tx);
 
-        let (tx, rx) = mpsc::channel::<SynthEvent>();
+        let (tx2, rx) = mpsc::channel::<SynthEvent>();
         let local_synth = Synth::new(rx);
-        event_senders.push(tx);
 
-        let waves = [Waveform::new(Vec::new()), Waveform::new(Vec::new())];
+        let waves = vec![Waveform::new(Vec::new()), Waveform::new(Vec::new())];
         Self {
             viewport: window_size,
             waves,
-            event_senders,
+            event_senders: vec![tx, tx2],
             local_synth,
             time_callback: time_rx,
             time: 0,
@@ -48,29 +46,25 @@ impl App {
     }
 
     fn update(&mut self) {
-        loop {
-            match self.time_callback.try_recv() {
-                Ok(time) => {
-                    self.time = time;
-                }
-                Err(_) => break,
-            }
+        while let Ok(time) = self.time_callback.try_recv() {
+            self.time = time
         }
         self.local_synth.fill_buffer(self.time.try_into().unwrap());
-        self.waves[0].buffer = self
-            .local_synth
-            .buffer
-            .iter()
-            .enumerate()
-            .filter_map(|(i, sample)| if i % 2 == 0 { Some(*sample) } else { None })
-            .collect();
-        self.waves[1].buffer = self
-            .local_synth
-            .buffer
-            .iter()
-            .enumerate()
-            .filter_map(|(i, sample)| if i % 2 == 1 { Some(*sample) } else { None })
-            .collect();
+        for (wave_idx, wave) in self.waves.iter_mut().enumerate() {
+            wave.buffer = self
+                .local_synth
+                .buffer
+                .iter()
+                .enumerate()
+                .filter_map(|(i, sample)| {
+                    if i % consts::CHANNELS as usize == wave_idx {
+                        Some(*sample)
+                    } else {
+                        None
+                    }
+                })
+                .collect();
+        }
     }
 }
 
@@ -81,37 +75,22 @@ impl WindowHandler for App {
         let width = self.viewport.x;
         let segment_size = width as f32 / self.waves[0].buffer.len() as f32;
 
-        let wave: Vec<Vec2> = self.waves[0]
-            .buffer
-            .iter()
-            .enumerate()
-            .map(|(i, sample)| {
-                Vec2::new(
-                    segment_size as f32 * i as f32,
-                    AMPLIFY * sample * self.viewport.y as f32 + (self.viewport.y as f32 / 2.0),
-                )
-            })
-            .collect();
-
-        let wave2: Vec<Vec2> = self.waves[1]
-            .buffer
-            .iter()
-            .enumerate()
-            .map(|(i, sample)| {
-                Vec2::new(
-                    segment_size as f32 * i as f32,
-                    AMPLIFY * sample * self.viewport.y as f32 + (self.viewport.y as f32 / 2.0),
-                )
-            })
-            .collect();
-
-        for pair in wave.as_slice().windows(2) {
-            let (from, to) = (pair[0], pair[1]);
-            graphics.draw_line(from, to, 2.0, Color::BLACK);
-        }
-        for pair in wave2.as_slice().windows(2) {
-            let (from, to) = (pair[0], pair[1]);
-            graphics.draw_line(from, to, 2.0, Color::BLACK);
+        for wave in &self.waves {
+            let wave: Vec<Vec2> = wave
+                .buffer
+                .iter()
+                .enumerate()
+                .map(|(i, sample)| {
+                    Vec2::new(
+                        segment_size * i as f32,
+                        AMPLIFY * sample * self.viewport.y as f32 + (self.viewport.y as f32 / 2.0),
+                    )
+                })
+                .collect();
+            for pair in wave.as_slice().windows(2) {
+                let (from, to) = (pair[0], pair[1]);
+                graphics.draw_line(from, to, 2.0, Color::BLACK);
+            }
         }
 
         std::thread::sleep(std::time::Duration::from_millis(10));
