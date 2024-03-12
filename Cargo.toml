@@ -6,12 +6,16 @@ edition = "2021"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [features]
-default = ["visualizer"]
-visualizer = ["speedy2d"]
+default = ["tinyaudio"]
+visualizer = ["speedy2d", "glam"]
+tinyaudio = ["dep:tinyaudio"]
 
 [dependencies]
 dasp_ring_buffer = "0.11.0"
-speedy2d = { git = "https://github.com/kirinokirino/Speedy2D", version = "1.10.0", optional = true, default-features = false, features = ["windowing-x11", "windowing"] }
+glam = { version = "0.25.0", optional = true }
+speedy2d = { version = "2.1", path = "../Speedy2D", default-features = false, features = ["windowing-wayland", "shapes",  "windowing", "image-loading", "image-png"], optional = true }
+
+tinyaudio = { version = "0.1.2", optional = true }
 
 [target.'cfg(any(target_os = "linux", target_os = "dragonfly", target_os = "freebsd"))'.dependencies]
 alsa-sys = "0.3.1"

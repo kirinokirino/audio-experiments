@@ -1,14 +1,15 @@
 use std::sync::mpsc::{self, Receiver, Sender};
 
+use glam::{UVec2, Vec2};
+
 use speedy2d::{
     color::Color,
-    dimen::{UVec2, Vec2},
     window::{KeyScancode, VirtualKeyCode, WindowHandler, WindowHelper},
     Graphics2D,
 };
 
 use crate::{
-    audio::audio_thread,
+    //audio::audio_thread,
     consts,
     synth::{OscType, Synth, SynthEvent},
 };
