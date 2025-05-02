@@ -550,15 +550,6 @@ pub(crate) fn render_source_default(
     source.last_right_gain = Some(right_gain);
 }
 
-pub(crate) fn render_source_2d_only(source: &mut SoundSource, mix_buffer: &mut [(f32, f32)]) {
-    let gain = (1.0 - source.spatial_blend()) * source.gain();
-    let left_gain = gain * (1.0 + source.panning());
-    let right_gain = gain * (1.0 - source.panning());
-    render_with_params(source, left_gain, right_gain, mix_buffer);
-    source.last_left_gain = Some(left_gain);
-    source.last_right_gain = Some(right_gain);
-}
-
 pub fn lerp(a: f32, b: f32, t: f32) -> f32 {
     a + (b - a) * t
 }

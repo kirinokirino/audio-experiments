@@ -1,6 +1,6 @@
-use std::time::Duration;
-
 use glam::Vec3;
+
+use std::time::Duration;
 
 use crate::{buffer::Buffer, Listener};
 
@@ -63,12 +63,7 @@ pub struct SoundSource {
     radius: f32,
     position: Vec3,
     max_distance: f32,
-    rolloff_factor: f32,
-    // Some data that needed for iterative overlap-save convolution.
-    pub(crate) prev_left_samples: Vec<f32>,
-    pub(crate) prev_right_samples: Vec<f32>,
-    pub(crate) prev_sampling_vector: Vec3,
-    pub(crate) prev_distance_gain: Option<f32>,
+    rolloff_factor: f32
 }
 
 impl SoundSource {
@@ -262,16 +257,6 @@ impl SoundSource {
             .dot(listener.ear_axis())
     }
 
-    pub(crate) fn calculate_sampling_vector(&self, listener: &Listener) -> Vec3 {
-        let to_self = listener.position() - self.position;
-
-        (*listener.basis() * to_self)
-            .try_normalize()
-            // This is ok to fallback to (0, 0, 1) vector because it's given
-            // in listener coordinate system.
-            .unwrap_or_else(|| Vec3::new(0.0, 0.0, 1.0))
-    }
-
     /// Returns playback duration.
     pub fn playback_time(&self) -> Duration {
         if let Some(buffer) = self.buffer.as_ref() {
@@ -321,7 +306,7 @@ impl SoundSource {
 
             let channel_count = buffer.channel_count;
             let len = buffer.samples.len();
-            let mut end_reached = true;
+            let end_reached = true;
             if end_reached {
                 self.buf_read_pos = 0.0;
                 self.playback_pos = 0.0;
@@ -447,11 +432,5 @@ impl SoundSource {
 
     pub(crate) fn frame_samples(&self) -> &[(f32, f32)] {
         &self.frame_samples
-    }
-}
-
-impl Drop for SoundSource {
-    fn drop(&mut self) {
-        if let Some(buffer) = self.buffer.as_ref() {}
     }
 }
