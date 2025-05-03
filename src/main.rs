@@ -15,7 +15,7 @@ fn main() {
     // Create sine wave.
     let sample_rate = 44100;
     let samples: Vec<f32> = {
-        let frequency = 440.0;
+        let frequency = 220.0;
         let amplitude = 0.15;
         (0..44100)
             .map(|i| {
@@ -33,9 +33,7 @@ fn main() {
     source.buffer = Some(sine_wave_buffer);
     source.looping = true;
     source.status = source::Status::Playing;
-
     //dbg!(&source);
-
     context.lock().add_source(source);
 
     {
@@ -49,6 +47,7 @@ fn main() {
         println!("bus_graph {:#?}", sound_state.bus_graph_ref());
         println!("is_paused {:?}", sound_state.paused);
     }
+
     std::thread::sleep(std::time::Duration::from_secs(3));
 }
 

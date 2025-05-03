@@ -287,7 +287,7 @@ pub struct AudioBusGraph {
 
 impl AudioBusGraph {
     /// The name of the audio bus that output samples directly to an audio playback device.
-    pub const PRIMARY_BUS: &'static str = "Primary";
+    pub const PRIMARY_BUS: &'static str = "Master";
 
     /// Creates a new audio bus graph. Sound context already has an audio graph instance, so calling
     /// this method is needed only for very specific cases (mostly tests).

@@ -184,37 +184,69 @@ impl SoundContext {
             }
         }
     }
-
     pub fn render(&mut self, output_device_buffer: &mut [(f32, f32)]) {
+        // Clear output first so we can detect if audio is actually being written
+        output_device_buffer.fill((0.0, 0.0));
+        println!("[Audio] Render started, buffer len: {}", output_device_buffer.len());
+    
         let last_time = Instant::now();
-
-        if !self.paused {
-            self.sources.retain(|source| {
-                let done = source.play_once && source.status == Status::Stopped;
-                !done
-            });
-
-            self.bus_graph.begin_render(output_device_buffer.len());
-
-            // Render sounds to respective audio buses.
-            for source in self
-                .sources
-                .iter_mut()
-                .filter(|s| s.status == Status::Playing)
-            {
-                if let Some(bus_input_buffer) = self.bus_graph.try_get_bus_input_buffer(&source.bus)
-                {
-                    source.render(output_device_buffer.len());
-
-                    // Simple rendering path. Much faster (4-5 times) than HRTF path.
-                    render_source_default(source, &self.listener, bus_input_buffer);
-                }
-            }
-
-            self.bus_graph.end_render(output_device_buffer);
+    
+        if self.paused {
+            println!("[Audio] System paused - no processing");
+            return;
         }
-
+    
+        // Check sources
+        let active_sources: usize = self.sources.iter()
+            .filter(|s| s.status == Status::Playing)
+            .count();
+        println!("[Audio] Active sources: {}", active_sources);
+    
+        self.sources.retain(|source| {
+            let done = source.play_once && source.status == Status::Stopped;
+            if done {
+                println!("[Audio] Removing finished source");
+            }
+            !done
+        });
+    
+        // Verify bus graph
+        println!("[Audio] Beginning bus graph render");
+        self.bus_graph.begin_render(output_device_buffer.len());
+    
+        // Process each active source
+        for source in self.sources.iter_mut().filter(|s| s.status == Status::Playing) {
+            println!("[Audio] Processing source -> bus '{}'", source.bus);
+            
+            if let Some(bus_input_buffer) = self.bus_graph.try_get_bus_input_buffer(&source.bus) {
+                println!("[Audio]  Found bus buffer (len: {})", bus_input_buffer.len());
+                
+                source.render(output_device_buffer.len());
+                println!("[Audio]  Source rendered {} samples", source.frame_samples().len());
+    
+                render_source_default(source, &self.listener, bus_input_buffer);
+                
+                // Debug: Check if bus buffer was written to
+                let written_samples = bus_input_buffer.iter()
+                    .filter(|&&s| s != (0.0, 0.0))
+                    .count();
+                println!("[Audio]  Bus buffer modified samples: {}/{}", written_samples, bus_input_buffer.len());
+            } else {
+                println!("[Audio]  No bus found for '{}'", source.bus);
+            }
+        }
+    
+        // Final mix
+        println!("[Audio] Final bus graph mix");
+        self.bus_graph.end_render(output_device_buffer);
+    
+        // Verify output
+        let silent_output = output_device_buffer.iter()
+            .all(|&s| s == (0.0, 0.0));
+        println!("[Audio] Output buffer silent: {}", silent_output);
+    
         self.render_duration = Instant::now().duration_since(last_time);
+        println!("[Audio] Render completed in {:?}", self.render_duration);
     }
 }
 
