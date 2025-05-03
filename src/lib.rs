@@ -22,6 +22,8 @@ pub const SAMPLES_PER_CHANNEL: usize = 513 * 4;
 pub struct SoundEngine {
     pub context: SharedSoundContext,
     output_device: Option<tinyaudio::OutputDevice>,
+    internal_buffer: Vec<(f32, f32)>,
+    buffer_size: usize,
 }
 
 #[derive(Clone)]
@@ -29,9 +31,12 @@ pub struct SharedSoundEngine(Arc<Mutex<SoundEngine>>);
 
 impl SharedSoundEngine {
     pub fn new() -> Result<Self, Box<dyn Error>> {
+        let buffer_size = SAMPLES_PER_CHANNEL / 2;
         let engine = Self(Arc::new(Mutex::new(SoundEngine {
             context: Default::default(),
             output_device: None,
+            internal_buffer: vec![(0.0, 0.0); buffer_size],
+            buffer_size,
         })));
         let state = engine.clone();
 
@@ -41,9 +46,7 @@ impl SharedSoundEngine {
                 channels_count: 2,
                 channel_sample_count: SAMPLES_PER_CHANNEL,
             },
-            {
-                move |buf| SharedSoundEngine::render_callback(buf, &state)
-            },
+            { move |buf| SharedSoundEngine::render_callback(buf, &state) },
         )?;
         engine.lock().output_device = Some(device);
         Ok(engine)
@@ -52,18 +55,16 @@ impl SharedSoundEngine {
         self.0.lock().unwrap()
     }
     fn render_callback(buf: &mut [f32], engine: &SharedSoundEngine) {
-        // SAFETY: Channels count == 2, interleaved stereo buffer
+        let mut engine = engine.lock();
+        engine.context.clone().lock().render(&mut engine.internal_buffer);
+        
+        // Copy to tinyaudio's buffer
+        let stereo_samples = buf.len() / 2;
         let output_device_buffer = unsafe {
-            let data = std::slice::from_raw_parts_mut(
-                buf.as_mut_ptr() as *mut (f32, f32),
-                buf.len() / 2,
-            );
-            data.fill((0.0, 0.0));
-            data
+            std::slice::from_raw_parts_mut(buf.as_mut_ptr() as *mut (f32, f32), stereo_samples)
         };
-    
-        let engine = engine.lock();
-        engine.context.lock().render(output_device_buffer);
+
+        output_device_buffer.copy_from_slice(&engine.internal_buffer[..stereo_samples]);
     }
 }
 
