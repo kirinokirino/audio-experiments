@@ -1,5 +1,4 @@
 use crate::pool::INVALID_GENERATION;
-use serde::{Deserialize, Serialize};
 use std::{
     cmp::Ordering,
     fmt::{Debug, Display, Formatter},
@@ -8,10 +7,6 @@ use std::{
     sync::atomic::{self, AtomicUsize},
 };
 
-/// Handle is some sort of non-owning reference to content in a pool. It stores
-/// index of object and additional information that allows to ensure that handle
-/// is still valid (points to the same object as when handle was created).
-#[derive(Serialize, Deserialize)]
 pub struct Handle<T> {
     /// Index of object in pool.
     pub(super) index: u32,
@@ -19,7 +14,6 @@ pub struct Handle<T> {
     /// index of handle then this is valid handle.
     pub(super) generation: u32,
     /// Type holder.
-    #[serde(skip)]
     pub(super) type_marker: PhantomData<T>,
 }
 
@@ -209,9 +203,7 @@ impl Debug for AtomicHandle {
 }
 
 /// Type-erased handle.
-#[derive(
-    Copy, Clone, Debug, Ord, PartialOrd, PartialEq, Eq, Hash, Serialize, Deserialize,
-)]
+#[derive(Copy, Clone, Debug, Ord, PartialOrd, PartialEq, Eq, Hash)]
 pub struct ErasedHandle {
     /// Index of object in pool.
     index: u32,
