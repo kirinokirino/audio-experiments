@@ -34,13 +34,13 @@ fn main() {
     source.looping = true;
     source.status = source::Status::Playing;
 
-    dbg!(&source);
+    //dbg!(&source);
 
     context.lock().add_source(source);
 
     {
         let sound_state = context.lock();
-        println!("sources {:?}", sound_state.sources());
+        //println!("sources {:?}", sound_state.sources());
         println!("listener {:?}", sound_state.listener());
         println!(
             "full_render_duration {:?}",
@@ -49,7 +49,7 @@ fn main() {
         println!("bus_graph {:#?}", sound_state.bus_graph_ref());
         println!("is_paused {:?}", sound_state.paused);
     }
-    std::thread::sleep(std::time::Duration::from_secs(10));
+    std::thread::sleep(std::time::Duration::from_secs(3));
 }
 
 // sources: Pool<SoundSource>,

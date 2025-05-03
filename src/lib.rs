@@ -31,7 +31,7 @@ pub struct SharedSoundEngine(Arc<Mutex<SoundEngine>>);
 
 impl SharedSoundEngine {
     pub fn new() -> Result<Self, Box<dyn Error>> {
-        let buffer_size = SAMPLES_PER_CHANNEL / 2;
+        let buffer_size = SAMPLES_PER_CHANNEL;
         let engine = Self(Arc::new(Mutex::new(SoundEngine {
             context: Default::default(),
             output_device: None,
@@ -46,7 +46,7 @@ impl SharedSoundEngine {
                 channels_count: 2,
                 channel_sample_count: SAMPLES_PER_CHANNEL,
             },
-            { move |buf| SharedSoundEngine::render_callback(buf, &state) },
+            move |buf| SharedSoundEngine::render_callback(buf, &state),
         )?;
         engine.lock().output_device = Some(device);
         Ok(engine)
@@ -56,6 +56,7 @@ impl SharedSoundEngine {
     }
     fn render_callback(buf: &mut [f32], engine: &SharedSoundEngine) {
         let mut engine = engine.lock();
+        // engine.context.clone().lock().mock_render(&mut engine.internal_buffer);
         engine.context.clone().lock().render(&mut engine.internal_buffer);
         
         // Copy to tinyaudio's buffer
@@ -167,6 +168,21 @@ impl SoundContext {
     /// Returns a reference to the audio bus graph.
     pub fn bus_graph_mut(&mut self) -> &mut AudioBusGraph {
         &mut self.bus_graph
+    }
+
+    pub fn mock_render(&mut self, output_buffer: &mut [(f32, f32)]) {
+        static mut PHASE: f32 = 0.0;
+        const FREQ: f32 = 440.0; // A4 note
+        const SAMPLE_RATE: f32 = 44100.0;
+        
+        for (left, right) in output_buffer {
+            unsafe {
+                let sample = (PHASE * 2.0 * std::f32::consts::PI).sin() * 0.2;
+                *left = sample;
+                *right = sample;
+                PHASE = (PHASE + FREQ / SAMPLE_RATE) % 1.0;
+            }
+        }
     }
 
     pub fn render(&mut self, output_device_buffer: &mut [(f32, f32)]) {
