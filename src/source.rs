@@ -11,8 +11,6 @@ pub enum Status {
     /// Sound is stopped - it won't produces any sample and won't load mixer. This is default
     /// state of all sound sources.
     Stopped = 0,
-
-    /// Sound is playing.
     Playing = 1,
 
     /// Sound is paused, it can stay in this state any amount if time. Playback can be continued by
@@ -23,8 +21,8 @@ pub enum Status {
 /// See module info.
 #[derive(Debug, Clone)]
 pub struct SoundSource {
-    name: String,
-    buffer: Option<Buffer>,
+    pub name: String,
+    pub buffer: Option<Buffer>,
     // Read position in the buffer in samples. Differs from `playback_pos` if buffer is streaming.
     // In case of streaming buffer its maximum value will be some fixed value which is
     // implementation defined. It can be less than zero, this happens when we are in the process
@@ -32,11 +30,11 @@ pub struct SoundSource {
     buf_read_pos: f64,
     // Real playback position in samples.
     playback_pos: f64,
-    panning: f32,
+    pub panning: f32,
     pitch: f64,
-    gain: f32,
-    looping: bool,
-    spatial_blend: f32,
+    pub gain: f32,
+    pub looping: bool,
+    pub spatial_blend: f32,
     // Important coefficient for runtime resampling. It is used to modify playback speed
     // of a source in order to match output device sampling rate. PCM data can be stored
     // in various sampling rates (22050 Hz, 44100 Hz, 88200 Hz, etc.) but output device
@@ -46,9 +44,9 @@ pub struct SoundSource {
     // playback speed by 0.5.
     // However such auto-resampling has poor quality, but it is fast.
     resampling_multiplier: f64,
-    status: Status,
+    pub status: Status,
     pub(crate) bus: String,
-    play_once: bool,
+    pub play_once: bool,
     // Here we use Option because when source is just created it has no info about it
     // previous left and right channel gains. We can't set it to 1.0 for example
     // because it would give incorrect results: a sound would just start as loud as it
@@ -67,48 +65,6 @@ pub struct SoundSource {
 }
 
 impl SoundSource {
-    /// Sets new name of the sound source.
-    pub fn set_name<N: AsRef<str>>(&mut self, name: N) {
-        name.as_ref().clone_into(&mut self.name);
-    }
-
-    /// Returns the name of the sound source.
-    pub fn name(&self) -> &str {
-        &self.name
-    }
-
-    /// Returns the name of the sound source.
-    pub fn name_owned(&self) -> String {
-        self.name.to_owned()
-    }
-
-    /// Sets spatial blend factor. It defines how much the source will be 2D and 3D sound at the same
-    /// time. Set it to 0.0 to make the sound fully 2D and 1.0 to make it fully 3D. Middle values
-    /// will make sound proportionally 2D and 3D at the same time.
-    pub fn set_spatial_blend(&mut self, k: f32) {
-        self.spatial_blend = k.clamp(0.0, 1.0);
-    }
-
-    /// Returns spatial blend factor.
-    pub fn spatial_blend(&self) -> f32 {
-        self.spatial_blend
-    }
-
-    /// Marks buffer for single play. It will be automatically destroyed when it will finish playing.
-    ///
-    /// # Notes
-    ///
-    /// Make sure you not using handles to "play once" sounds, attempt to get reference of "play once" sound
-    /// may result in panic if source already deleted. Looping sources will never be automatically deleted
-    /// because their playback never stops.
-    pub fn set_play_once(&mut self, play_once: bool) {
-        self.play_once = play_once;
-    }
-
-    /// Returns true if this source is marked for single play, false - otherwise.
-    pub fn is_play_once(&self) -> bool {
-        self.play_once
-    }
 
     /// Sets new gain (volume) of sound. Value should be in 0..1 range, but it is not clamped
     /// and larger values can be used to "overdrive" sound.
@@ -122,11 +78,6 @@ impl SoundSource {
         self
     }
 
-    /// Returns current gain (volume) of sound. Value is in 0..1 range.
-    pub fn gain(&self) -> f32 {
-        self.gain
-    }
-
     /// Sets panning coefficient. Value must be in -1..+1 range. Where -1 - only left channel will be audible,
     /// 0 - both, +1 - only right.
     pub fn set_panning(&mut self, panning: f32) -> &mut Self {
@@ -134,49 +85,10 @@ impl SoundSource {
         self
     }
 
-    /// Returns current panning coefficient in -1..+1 range. For more info see `set_panning`. Default value is 0.
-    pub fn panning(&self) -> f32 {
-        self.panning
-    }
-
-    /// Returns status of sound source.
-    pub fn status(&self) -> Status {
-        self.status
-    }
-
-    /// Changes status to `Playing`.
-    pub fn play(&mut self) -> &mut Self {
-        self.status = Status::Playing;
-        self
-    }
-
-    /// Changes status to `Paused`
-    pub fn pause(&mut self) -> &mut Self {
-        self.status = Status::Paused;
-        self
-    }
-
-    /// Enabled or disables sound looping. Looping sound will never stop by itself, but can be stopped or paused
-    /// by calling `stop` or `pause` methods. Useful for music, ambient sounds, etc.
-    pub fn set_looping(&mut self, looping: bool) -> &mut Self {
-        self.looping = looping;
-        self
-    }
-
-    /// Returns looping status.
-    pub fn is_looping(&self) -> bool {
-        self.looping
-    }
-
     /// Sets sound pitch. Defines "tone" of sounds. Default value is 1.0
     pub fn set_pitch(&mut self, pitch: f64) -> &mut Self {
         self.pitch = pitch.abs();
         self
-    }
-
-    /// Returns pitch of sound source.
-    pub fn pitch(&self) -> f64 {
-        self.pitch
     }
 
     /// Stops sound source. Automatically rewinds streaming buffers.
@@ -194,20 +106,10 @@ impl SoundSource {
         self
     }
 
-    /// Returns positions of source.
-    pub fn position(&self) -> Vec3 {
-        self.position
-    }
-
     /// Sets radius of imaginable sphere around source in which no distance attenuation is applied.
     pub fn set_radius(&mut self, radius: f32) -> &mut Self {
         self.radius = radius;
         self
-    }
-
-    /// Returns radius of source.
-    pub fn radius(&self) -> f32 {
-        self.radius
     }
 
     /// Sets rolloff factor. Rolloff factor is used in distance attenuation and has different meaning
@@ -216,11 +118,6 @@ impl SoundSource {
     pub fn set_rolloff_factor(&mut self, rolloff_factor: f32) -> &mut Self {
         self.rolloff_factor = rolloff_factor;
         self
-    }
-
-    /// Returns rolloff factor.
-    pub fn rolloff_factor(&self) -> f32 {
-        self.rolloff_factor
     }
 
     /// Sets maximum distance until which distance gain will be applicable. Basically it doing this
@@ -232,20 +129,10 @@ impl SoundSource {
         self
     }
 
-    /// Returns max distance.
-    pub fn max_distance(&self) -> f32 {
-        self.max_distance
-    }
-
     /// Sets new name of the target audio bus. The name must be valid, otherwise the sound won't play!
     /// Default is [`AudioBusGraph::PRIMARY_BUS`].
     pub fn set_bus<S: AsRef<str>>(&mut self, bus: S) {
         bus.as_ref().clone_into(&mut self.bus);
-    }
-
-    /// Return the name of the target audio bus.
-    pub fn bus(&self) -> &str {
-        &self.bus
     }
 
     pub(crate) fn calculate_panning(&self, listener: &Listener) -> f32 {
@@ -432,5 +319,33 @@ impl SoundSource {
 
     pub(crate) fn frame_samples(&self) -> &[(f32, f32)] {
         &self.frame_samples
+    }
+}
+
+impl Default for SoundSource {
+    fn default() -> Self {
+        Self {
+            name: Default::default(),
+            buffer: None,
+            buf_read_pos: 0.0,
+            playback_pos: 0.0,
+            panning: 0.0,
+            pitch: 1.0,
+            gain: 1.0,
+            spatial_blend: 1.0,
+            looping: false,
+            resampling_multiplier: 1.0,
+            status: Status::Stopped,
+            bus: "Master".to_string(),
+            play_once: false,
+            last_left_gain: None,
+            last_right_gain: None,
+            frame_samples: Default::default(),
+            prev_buffer_sample: (0.0, 0.0),
+            radius: 1.0,
+            position: Vec3::new(0.0, 0.0, 0.0),
+            max_distance: f32::MAX,
+            rolloff_factor: 1.0,
+        }
     }
 }

@@ -1,60 +1,39 @@
 use glam::{Mat3, Vec3};
-use strum_macros::{AsRefStr, EnumString, VariantNames};
 
 use std::error::Error;
 use std::sync::{Arc, Mutex, MutexGuard};
 use std::time::{Duration, Instant};
 
-pub mod pool;
+mod pool;
 use pool::handle::Handle;
 use pool::Pool;
-use pool::Ticket;
 
 pub mod source;
 use source::{SoundSource, Status};
 pub mod buffer;
-pub mod bus;
+mod bus;
 use bus::AudioBusGraph;
 
-pub mod effects;
+mod effects;
 
 pub const SAMPLE_RATE: u32 = 44100;
 pub const SAMPLES_PER_CHANNEL: usize = 513 * 4;
 
-/// Sound engine manages contexts, feeds output device with data. Sound engine instance can be cloned,
-/// however this is always a "shallow" clone, because actual sound engine data is wrapped in Arc.
-#[derive(Clone)]
-pub struct SoundEngine(Arc<Mutex<SoundEngineState>>);
-
-/// Internal state of the sound engine.
-pub struct SoundEngineState {
-    contexts: Vec<SoundContext>,
+pub struct SoundEngine {
+    pub context: SharedSoundContext,
     output_device: Option<tinyaudio::OutputDevice>,
 }
 
-impl SoundEngine {
-    /// Creates new instance of the sound engine. It is possible to have multiple engines running at
-    /// the same time, but you shouldn't do this because you can create multiple contexts which
-    /// should cover 99% of use cases.
+#[derive(Clone)]
+pub struct SharedSoundEngine(Arc<Mutex<SoundEngine>>);
+
+impl SharedSoundEngine {
     pub fn new() -> Result<Self, Box<dyn Error>> {
-        let engine = Self::without_device();
-        engine.initialize_audio_output_device()?;
-        Ok(engine)
-    }
-
-    /// Creates new instance of a sound engine without OS audio output device (so called headless mode).
-    /// The user should periodically run [`State::render`] if they want to implement their own sample sending
-    /// method to an output device (or a file, etc.).
-    pub fn without_device() -> Self {
-        Self(Arc::new(Mutex::new(SoundEngineState {
-            contexts: Default::default(),
+        let engine = Self(Arc::new(Mutex::new(SoundEngine {
+            context: Default::default(),
             output_device: None,
-        })))
-    }
-
-    /// Tries to initialize default audio output device.
-    pub fn initialize_audio_output_device(&self) -> Result<(), Box<dyn Error>> {
-        let state = self.clone();
+        })));
+        let state = engine.clone();
 
         let device = tinyaudio::run_output_device(
             tinyaudio::OutputDeviceParameters {
@@ -63,175 +42,72 @@ impl SoundEngine {
                 channel_sample_count: SAMPLES_PER_CHANNEL,
             },
             {
-                move |buf| {
-                    // SAFETY: This is safe as long as channels count above is 2.
-                    let data = unsafe {
-                        std::slice::from_raw_parts_mut(
-                            buf.as_mut_ptr() as *mut (f32, f32),
-                            buf.len() / 2,
-                        )
-                    };
-
-                    state.state().render(data);
-                }
+                move |buf| SharedSoundEngine::render_callback(buf, &state)
             },
         )?;
-
-        self.state().output_device = Some(device);
-
-        Ok(())
+        engine.lock().output_device = Some(device);
+        Ok(engine)
     }
-
-    /// Destroys current audio output device (if any).
-    pub fn destroy_audio_output_device(&self) {
-        self.state().output_device = None;
-    }
-
-    /// Provides direct access to actual engine data.
-    pub fn state(&self) -> MutexGuard<SoundEngineState> {
+    pub fn lock(&self) -> MutexGuard<SoundEngine> {
         self.0.lock().unwrap()
     }
-}
-
-impl SoundEngineState {
-    /// Adds new context to the engine. Each context must be added to the engine to emit
-    /// sounds.
-    pub fn add_context(&mut self, context: SoundContext) {
-        self.contexts.push(context);
-    }
-
-    /// Removes a context from the engine. Removed context will no longer produce any sound.
-    pub fn remove_context(&mut self, context: SoundContext) {
-        if let Some(position) = self.contexts.iter().position(|c| c == &context) {
-            self.contexts.remove(position);
-        }
-    }
-
-    /// Removes all contexts from the engine.
-    pub fn remove_all_contexts(&mut self) {
-        self.contexts.clear()
-    }
-
-    /// Checks if a context is registered in the engine.
-    pub fn has_context(&self, context: &SoundContext) -> bool {
-        self.contexts
-            .iter()
-            .any(|c| Arc::ptr_eq(c.state.as_ref().unwrap(), context.state.as_ref().unwrap()))
-    }
-
-    /// Returns a reference to context container.
-    pub fn contexts(&self) -> &[SoundContext] {
-        &self.contexts
-    }
-
-    /// Returns the length of buf to be passed to [`Self::render()`].
-    pub fn render_buffer_len() -> usize {
-        SAMPLES_PER_CHANNEL
-    }
-
-    /// Renders the sound into buf. The buf must have at least [`Self::render_buffer_len()`]
-    /// elements. This method must be used if and only if the engine was created via
-    /// [`SoundEngine::without_device`].
-    ///
-    /// ## Deadlocks
-    ///
-    /// This method internally locks added sound contexts so it must be called when all the contexts
-    /// are unlocked or you'll get a deadlock.
-    pub fn render(&mut self, buf: &mut [(f32, f32)]) {
-        buf.fill((0.0, 0.0));
-        self.render_inner(buf);
-    }
-
-    fn render_inner(&mut self, buf: &mut [(f32, f32)]) {
-        for context in self.contexts.iter_mut() {
-            context.state().render(buf);
-        }
+    fn render_callback(buf: &mut [f32], engine: &SharedSoundEngine) {
+        // SAFETY: Channels count == 2, interleaved stereo buffer
+        let output_device_buffer = unsafe {
+            let data = std::slice::from_raw_parts_mut(
+                buf.as_mut_ptr() as *mut (f32, f32),
+                buf.len() / 2,
+            );
+            data.fill((0.0, 0.0));
+            data
+        };
+    
+        let engine = engine.lock();
+        engine.context.lock().render(output_device_buffer);
     }
 }
 
-/// See module docs.
 #[derive(Clone, Default, Debug)]
-pub struct SoundContext {
-    pub(crate) state: Option<Arc<Mutex<SoundContextState>>>,
+pub struct SharedSoundContext {
+    pub state: Option<Arc<Mutex<SoundContext>>>,
 }
 
-impl PartialEq for SoundContext {
-    fn eq(&self, other: &Self) -> bool {
-        Arc::ptr_eq(self.state.as_ref().unwrap(), other.state.as_ref().unwrap())
+impl SharedSoundContext {
+    /// Creates new instance of context. Internally context starts new thread which will call render all
+    /// sound source and send samples to default output device. This method returns `Arc<Mutex<Context>>`
+    /// because separate thread also uses context.
+    pub fn new() -> Self {
+        Self {
+            state: Some(Arc::new(Mutex::new(SoundContext {
+                sources: Pool::new(),
+                listener: Listener::new(),
+                render_duration: Default::default(),
+                bus_graph: AudioBusGraph::new(),
+                paused: false,
+            }))),
+        }
+    }
+
+    pub fn lock(&self) -> MutexGuard<'_, SoundContext> {
+        self.state.as_ref().unwrap().lock().unwrap()
     }
 }
 
 /// Internal state of context.
 #[derive(Default, Debug, Clone)]
-pub struct SoundContextState {
+pub struct SoundContext {
     sources: Pool<SoundSource>,
     listener: Listener,
     render_duration: Duration,
-    renderer: Renderer,
     bus_graph: AudioBusGraph,
-    paused: bool,
+    pub paused: bool,
 }
 
-impl SoundContextState {
-    /// Extracts a source from the context and reserves its handle. It is used to temporarily take
-    /// ownership over source, and then put node back using given ticket.
-    pub fn take_reserve(
-        &mut self,
-        handle: Handle<SoundSource>,
-    ) -> (Ticket<SoundSource>, SoundSource) {
-        self.sources.take_reserve(handle)
-    }
-
-    /// Puts source back by given ticket.
-    pub fn put_back(
-        &mut self,
-        ticket: Ticket<SoundSource>,
-        node: SoundSource,
-    ) -> Handle<SoundSource> {
-        self.sources.put_back(ticket, node)
-    }
-
-    /// Makes source handle vacant again.
-    pub fn forget_ticket(&mut self, ticket: Ticket<SoundSource>) {
-        self.sources.forget_ticket(ticket)
-    }
-
-    /// Pause/unpause the sound context. Paused context won't play any sounds.
-    pub fn pause(&mut self, pause: bool) {
-        self.paused = pause;
-    }
-
-    /// Returns true if the sound context is paused, false - otherwise.
-    pub fn is_paused(&self) -> bool {
-        self.paused
-    }
-
-    /// Normalizes given frequency using context's sampling rate. Normalized frequency then can be used
-    /// to create filters.
-    pub fn normalize_frequency(&self, f: f32) -> f32 {
-        f / SAMPLE_RATE as f32
-    }
-
+impl SoundContext {
     /// Returns amount of time context spent on rendering all sound sources.
     pub fn full_render_duration(&self) -> Duration {
         self.render_duration
     }
-
-    /// Sets new renderer.
-    pub fn set_renderer(&mut self, renderer: Renderer) -> Renderer {
-        std::mem::replace(&mut self.renderer, renderer)
-    }
-
-    /// Returns shared reference to current renderer.
-    pub fn renderer(&self) -> &Renderer {
-        &self.renderer
-    }
-
-    /// Returns mutable reference to current renderer.
-    pub fn renderer_mut(&mut self) -> &mut Renderer {
-        &mut self.renderer
-    }
-
     /// Adds new sound source and returns handle of it by which it can be accessed later on.
     pub fn add_source(&mut self, source: SoundSource) -> Handle<SoundSource> {
         self.sources.spawn(source)
@@ -292,12 +168,12 @@ impl SoundContextState {
         &mut self.bus_graph
     }
 
-    pub(crate) fn render(&mut self, output_device_buffer: &mut [(f32, f32)]) {
+    pub fn render(&mut self, output_device_buffer: &mut [(f32, f32)]) {
         let last_time = Instant::now();
 
         if !self.paused {
             self.sources.retain(|source| {
-                let done = source.is_play_once() && source.status() == Status::Stopped;
+                let done = source.play_once && source.status == Status::Stopped;
                 !done
             });
 
@@ -307,18 +183,14 @@ impl SoundContextState {
             for source in self
                 .sources
                 .iter_mut()
-                .filter(|s| s.status() == Status::Playing)
+                .filter(|s| s.status == Status::Playing)
             {
                 if let Some(bus_input_buffer) = self.bus_graph.try_get_bus_input_buffer(&source.bus)
                 {
                     source.render(output_device_buffer.len());
 
-                    match self.renderer {
-                        Renderer::Default => {
-                            // Simple rendering path. Much faster (4-5 times) than HRTF path.
-                            render_source_default(source, &self.listener, bus_input_buffer);
-                        }
-                    }
+                    // Simple rendering path. Much faster (4-5 times) than HRTF path.
+                    render_source_default(source, &self.listener, bus_input_buffer);
                 }
             }
 
@@ -328,70 +200,6 @@ impl SoundContextState {
         self.render_duration = Instant::now().duration_since(last_time);
     }
 }
-
-impl SoundContext {
-    /// Creates new instance of context. Internally context starts new thread which will call render all
-    /// sound source and send samples to default output device. This method returns `Arc<Mutex<Context>>`
-    /// because separate thread also uses context.
-    pub fn new() -> Self {
-        Self {
-            state: Some(Arc::new(Mutex::new(SoundContextState {
-                sources: Pool::new(),
-                listener: Listener::new(),
-                render_duration: Default::default(),
-                renderer: Renderer::Default,
-                bus_graph: AudioBusGraph::new(),
-                paused: false,
-            }))),
-        }
-    }
-
-    /// Returns internal state of the context.
-    ///
-    /// ## Deadlocks
-    ///
-    /// This method internally locks a mutex, so if you'll try to do something like this:
-    ///
-    /// ```no_run
-    /// # use fyrox_sound::context::SoundContext;
-    /// # let ctx = SoundContext::new();
-    /// let state = ctx.state();
-    /// // Do something
-    /// // ...
-    /// ctx.state(); // This will cause a deadlock.
-    /// ```
-    ///
-    /// You'll get a deadlock, so general rule here is to not store result of this method
-    /// anywhere.
-    pub fn state(&self) -> MutexGuard<'_, SoundContextState> {
-        self.state.as_ref().unwrap().lock().unwrap()
-    }
-
-    /// Creates deep copy instead of shallow which is done by clone().
-    pub fn deep_clone(&self) -> SoundContext {
-        SoundContext {
-            state: Some(Arc::new(Mutex::new(self.state().clone()))),
-        }
-    }
-
-    /// Returns true if context is corrupted.
-    pub fn is_invalid(&self) -> bool {
-        self.state.is_none()
-    }
-}
-
-#[derive(Debug, Clone, AsRefStr, EnumString, VariantNames)]
-pub enum Renderer {
-    /// Stateless default renderer.
-    Default,
-}
-
-impl Default for Renderer {
-    fn default() -> Self {
-        Self::Default
-    }
-}
-
 
 /// See module docs.
 #[derive(Debug, Clone)]
@@ -407,7 +215,7 @@ impl Default for Listener {
 }
 
 impl Listener {
-    pub(crate) fn new() -> Self {
+    pub fn new() -> Self {
         Self {
             basis: Mat3::IDENTITY,
             position: Vec3::new(0.0, 0.0, 0.0),
@@ -470,34 +278,21 @@ impl Listener {
     /// Returns up axis from basis. up
     pub fn up_axis(&self) -> Vec3 {
         let m = self.basis.to_cols_array();
-        Vec3::new(
-            m[3],
-            m[4],
-            m[5],
-        )
+        Vec3::new(m[3], m[4], m[5])
     }
 
     /// Returns look axis from basis. look
     pub fn look_axis(&self) -> Vec3 {
         let m = self.basis.to_cols_array();
-        Vec3::new(
-            m[6],
-            m[7],
-            m[8],
-        )
+        Vec3::new(m[6], m[7], m[8])
     }
 
     /// Returns ear axis from basis. side
     pub fn ear_axis(&self) -> Vec3 {
         let m = self.basis.to_cols_array();
-        Vec3::new(
-            m[0],
-            m[1],
-            m[2],
-        )
+        Vec3::new(m[0], m[1], m[2])
     }
 }
-
 
 fn render_with_params(
     source: &mut SoundSource,
@@ -532,19 +327,18 @@ fn render_with_params(
     }
 }
 
-pub(crate) fn render_source_default(
+pub fn render_source_default(
     source: &mut SoundSource,
     listener: &Listener,
     mix_buffer: &mut [(f32, f32)],
 ) {
     let panning = lerp(
-        source.panning(),
+        source.panning,
         source.calculate_panning(listener),
-        source.spatial_blend(),
+        source.spatial_blend,
     );
-    let gain = 1.0 * source.gain();
-    let left_gain = gain * (1.0 + panning);
-    let right_gain = gain * (1.0 - panning);
+    let left_gain = source.gain * (1.0 + panning);
+    let right_gain = source.gain * (1.0 - panning);
     render_with_params(source, left_gain, right_gain, mix_buffer);
     source.last_left_gain = Some(left_gain);
     source.last_right_gain = Some(right_gain);

@@ -1,6 +1,3 @@
-
-use strum_macros::{AsRefStr, EnumString, VariantNames};
-
 /// Attenuation effect.
 #[derive(Debug, Clone, PartialEq)]
 pub struct Attenuate {
@@ -36,7 +33,7 @@ impl EffectRenderTrait for Attenuate {
 /// Effects is a digital signal processing (DSP) unit that transforms input signal in a specific way.
 /// For example, [`LowPassFilterEffect`] could be used to muffle audio sources; to create "underwater"
 /// effect.
-#[derive(Debug, Clone, PartialEq, AsRefStr, EnumString, VariantNames)]
+#[derive(Debug, Clone, PartialEq)]
 pub enum Effect {
     /// See [`Attenuate`] docs for more info.
     Attenuate(Attenuate),
