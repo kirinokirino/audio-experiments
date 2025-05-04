@@ -1,6 +1,6 @@
 use glam::Vec3;
 
-use std::time::Duration;
+use std::{fmt::Debug, time::Duration};
 
 use crate::{buffer::Buffer, Listener};
 
@@ -19,7 +19,7 @@ pub enum Status {
 }
 
 /// See module info.
-#[derive(Debug, Clone)]
+#[derive(Clone)]
 pub struct SoundSource {
     pub name: String,
     pub buffer: Option<Buffer>,
@@ -30,7 +30,6 @@ pub struct SoundSource {
     buf_read_pos: f64,
     // Real playback position in samples.
     playback_pos: f64,
-    pub panning: f32,
     pitch: f64,
     pub gain: f32,
     pub looping: bool,
@@ -61,11 +60,37 @@ pub struct SoundSource {
     radius: f32,
     position: Vec3,
     max_distance: f32,
-    rolloff_factor: f32
+    rolloff_factor: f32,
+}
+
+impl Debug for SoundSource {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("SoundSource")
+            .field("name", &self.name)
+            .field("buffer", &self.buffer)
+            .field("buf_read_pos", &self.buf_read_pos)
+            .field("playback_pos", &self.playback_pos)
+            .field("pitch", &self.pitch)
+            .field("gain", &self.gain)
+            .field("looping", &self.looping)
+            .field("spatial_blend", &self.spatial_blend)
+            .field("resampling_multiplier", &self.resampling_multiplier)
+            .field("status", &self.status)
+            .field("bus", &self.bus)
+            .field("play_once", &self.play_once)
+            .field("last_left_gain", &self.last_left_gain)
+            .field("last_right_gain", &self.last_right_gain)
+            .field("frame_samples", &format!("[..{} frame_samples]", &self.frame_samples.len()))
+            .field("prev_buffer_sample", &self.prev_buffer_sample)
+            .field("radius", &self.radius)
+            .field("position", &self.position)
+            .field("max_distance", &self.max_distance)
+            .field("rolloff_factor", &self.rolloff_factor)
+            .finish()
+    }
 }
 
 impl SoundSource {
-
     /// Sets new gain (volume) of sound. Value should be in 0..1 range, but it is not clamped
     /// and larger values can be used to "overdrive" sound.
     ///
@@ -75,13 +100,6 @@ impl SoundSource {
     /// will be different if logarithmic scale was used.
     pub fn set_gain(&mut self, gain: f32) -> &mut Self {
         self.gain = gain;
-        self
-    }
-
-    /// Sets panning coefficient. Value must be in -1..+1 range. Where -1 - only left channel will be audible,
-    /// 0 - both, +1 - only right.
-    pub fn set_panning(&mut self, panning: f32) -> &mut Self {
-        self.panning = panning.clamp(-1.0, 1.0);
         self
     }
 
@@ -135,15 +153,6 @@ impl SoundSource {
         bus.as_ref().clone_into(&mut self.bus);
     }
 
-    pub(crate) fn calculate_panning(&self, listener: &Listener) -> f32 {
-        (listener.position() - self.position)
-            .try_normalize()
-            // Fallback to look axis will give zero panning which will result in even
-            // gain in each channels (as if there was no panning at all).
-            .unwrap_or_else(|| listener.look_axis())
-            .dot(listener.ear_axis())
-    }
-
     /// Returns playback duration.
     pub fn playback_time(&self) -> Duration {
         if let Some(buffer) = self.buffer.as_ref() {
@@ -191,18 +200,11 @@ impl SoundSource {
                 break;
             }
 
-            let channel_count = buffer.channel_count;
-            let len = buffer.samples.len();
-            let end_reached = true;
-            if end_reached {
-                self.buf_read_pos = 0.0;
-                self.playback_pos = 0.0;
-                if !self.looping {
-                    self.status = Status::Stopped;
-                    return;
-                }
-            } else {
-                self.buf_read_pos -= len as f64 / channel_count as f64;
+            self.buf_read_pos = 0.0;
+            self.playback_pos = 0.0;
+            if !self.looping {
+                self.status = Status::Stopped;
+                return;
             }
         }
     }
@@ -329,7 +331,6 @@ impl Default for SoundSource {
             buffer: None,
             buf_read_pos: 0.0,
             playback_pos: 0.0,
-            panning: 0.0,
             pitch: 1.0,
             gain: 1.0,
             spatial_blend: 1.0,

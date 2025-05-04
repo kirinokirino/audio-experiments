@@ -1,12 +1,26 @@
-use std::time::Duration;
+use std::{fmt::Debug, time::Duration};
 
-#[derive(Debug, Default, Clone)]
+#[derive(Default, Clone)]
 pub struct Buffer {
     /// Interleaved decoded samples (mono sounds: L..., stereo sounds: LR...)
     pub samples: Vec<f32>,
     pub channel_count: u8,
     pub sample_rate: u32,
     pub channel_duration_in_samples: usize,
+}
+
+impl Debug for Buffer {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("Buffer")
+            .field("samples", &format!("[..{} samples]", &self.samples.len()))
+            .field("channel_count", &self.channel_count)
+            .field("sample_rate", &self.sample_rate)
+            .field(
+                "channel_duration_in_samples",
+                &self.channel_duration_in_samples,
+            )
+            .finish()
+    }
 }
 
 impl Buffer {

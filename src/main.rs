@@ -1,32 +1,38 @@
 use audio::{
+    lerp,
     source::{self, SoundSource},
-    SharedSoundEngine, SharedSoundContext,
+    SharedSoundContext, SharedSoundEngine,
 };
 
 fn main() {
-    // let engine = SoundEngine::without_device();
-    // if let Err(error) = engine.initialize_audio_output_device() {
-    //     panic!("Error while initializing audio output device: {error}");
-    // }
     let engine = SharedSoundEngine::new().unwrap();
     let context = SharedSoundContext::new();
     engine.lock().context = context.clone();
 
     // Create sine wave.
-    let sample_rate = 44100;
-    let samples: Vec<f32> = {
-        let frequency = 220.0;
-        let amplitude = 0.15;
-        (0..44100)
-            .map(|i| {
-                amplitude
-                    * ((2.0 * std::f32::consts::PI * i as f32 * frequency) / sample_rate as f32)
-                        .sin()
-            })
-            .collect()
-    };
+    let sample_rate = 44100u32;
+    let seconds = 10.0;
+    let total_samples = (seconds * sample_rate as f32) as usize;
+    let mut samples: Vec<f32> = Vec::with_capacity(total_samples as usize);
+    {
+        let frequency = 440.0;
+        let amplitude = 0.05;
+        for i in 0..total_samples {
+            let t1 = (i as f32 / (sample_rate as f32 * 0.25)).sin() + 1.0;
+            let t2 = ((i as f32 + 10.0) / (sample_rate as f32 * 0.25)).sin() + 1.0;
+            let sine1 = amplitude
+                * ((std::f32::consts::TAU * i as f32 * frequency) / sample_rate as f32).sin();
+            let sine2 = amplitude
+                * ((std::f32::consts::TAU * i as f32 * frequency) / sample_rate as f32).sin();
+            let left_sample = lerp(sine1, sine2, t1);
+            let right_sample = lerp(sine1, sine2, t1);
 
-    let sine_wave_buffer = audio::buffer::Buffer::new(sample_rate, 1, &samples).unwrap();
+            samples.push(left_sample);
+            samples.push(right_sample);
+        }
+    }
+
+    let sine_wave_buffer = audio::buffer::Buffer::new(sample_rate, 2, &samples).unwrap();
 
     // Create generic source (without spatial effects) using that buffer.
     let mut source = SoundSource::default();
@@ -34,11 +40,12 @@ fn main() {
     source.looping = true;
     source.status = source::Status::Playing;
     //dbg!(&source);
-    context.lock().add_source(source);
+    let source_handle = context.lock().add_source(source);
 
     {
         let sound_state = context.lock();
-        //println!("sources {:?}", sound_state.sources());
+        let source = sound_state.sources().try_borrow(source_handle).unwrap();
+        //println!("source  {:?}", source);
         println!("listener {:?}", sound_state.listener());
         println!(
             "full_render_duration {:?}",
@@ -48,6 +55,18 @@ fn main() {
         println!("is_paused {:?}", sound_state.paused);
     }
 
+    std::thread::sleep(std::time::Duration::from_secs(3));
+
+    context.lock().source_mut(source_handle).set_pitch(0.5);
+    println!("source  {:?}", context.lock().sources().try_borrow(source_handle).unwrap());
+    std::thread::sleep(std::time::Duration::from_secs(3));
+    context.lock().source_mut(source_handle).set_pitch(0.0);
+    println!("source  {:?}", context.lock().sources().try_borrow(source_handle).unwrap());
+    std::thread::sleep(std::time::Duration::from_secs(3));
+    context.lock().source_mut(source_handle).set_pitch(0.25);
+    println!("source  {:?}", context.lock().sources().try_borrow(source_handle).unwrap());
+    std::thread::sleep(std::time::Duration::from_secs(3));
+    context.lock().source_mut(source_handle).set_pitch(0.75);
     std::thread::sleep(std::time::Duration::from_secs(3));
 }
 

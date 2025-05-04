@@ -187,12 +187,12 @@ impl SoundContext {
     pub fn render(&mut self, output_device_buffer: &mut [(f32, f32)]) {
         // Clear output first so we can detect if audio is actually being written
         output_device_buffer.fill((0.0, 0.0));
-        println!("[Audio] Render started, buffer len: {}", output_device_buffer.len());
+        eprintln!("[Audio] Render started, buffer len: {}", output_device_buffer.len());
     
         let last_time = Instant::now();
     
         if self.paused {
-            println!("[Audio] System paused - no processing");
+            eprintln!("[Audio] System paused - no processing");
             return;
         }
     
@@ -200,29 +200,29 @@ impl SoundContext {
         let active_sources: usize = self.sources.iter()
             .filter(|s| s.status == Status::Playing)
             .count();
-        println!("[Audio] Active sources: {}", active_sources);
+        eprintln!("[Audio] Active sources: {}", active_sources);
     
         self.sources.retain(|source| {
             let done = source.play_once && source.status == Status::Stopped;
             if done {
-                println!("[Audio] Removing finished source");
+                eprintln!("[Audio] Removing finished source");
             }
             !done
         });
     
         // Verify bus graph
-        println!("[Audio] Beginning bus graph render");
+        eprintln!("[Audio] Beginning bus graph render");
         self.bus_graph.begin_render(output_device_buffer.len());
     
         // Process each active source
         for source in self.sources.iter_mut().filter(|s| s.status == Status::Playing) {
-            println!("[Audio] Processing source -> bus '{}'", source.bus);
+            eprintln!("[Audio] Processing source -> bus '{}'", source.bus);
             
             if let Some(bus_input_buffer) = self.bus_graph.try_get_bus_input_buffer(&source.bus) {
-                println!("[Audio]  Found bus buffer (len: {})", bus_input_buffer.len());
+                eprintln!("[Audio]  Found bus buffer (len: {})", bus_input_buffer.len());
                 
                 source.render(output_device_buffer.len());
-                println!("[Audio]  Source rendered {} samples", source.frame_samples().len());
+                eprintln!("[Audio]  Source rendered {} samples", source.frame_samples().len());
     
                 render_source_default(source, &self.listener, bus_input_buffer);
                 
@@ -230,23 +230,23 @@ impl SoundContext {
                 let written_samples = bus_input_buffer.iter()
                     .filter(|&&s| s != (0.0, 0.0))
                     .count();
-                println!("[Audio]  Bus buffer modified samples: {}/{}", written_samples, bus_input_buffer.len());
+                eprintln!("[Audio]  Bus buffer modified samples: {}/{}", written_samples, bus_input_buffer.len());
             } else {
-                println!("[Audio]  No bus found for '{}'", source.bus);
+                eprintln!("[Audio]  No bus found for '{}'", source.bus);
             }
         }
     
         // Final mix
-        println!("[Audio] Final bus graph mix");
+        eprintln!("[Audio] Final bus graph mix");
         self.bus_graph.end_render(output_device_buffer);
     
         // Verify output
         let silent_output = output_device_buffer.iter()
             .all(|&s| s == (0.0, 0.0));
-        println!("[Audio] Output buffer silent: {}", silent_output);
+        eprintln!("[Audio] Output buffer silent: {}", silent_output);
     
         self.render_duration = Instant::now().duration_since(last_time);
-        println!("[Audio] Render completed in {:?}", self.render_duration);
+        eprintln!("[Audio] Render completed in {:?}", self.render_duration);
     }
 }
 
@@ -381,11 +381,7 @@ pub fn render_source_default(
     listener: &Listener,
     mix_buffer: &mut [(f32, f32)],
 ) {
-    let panning = lerp(
-        source.panning,
-        source.calculate_panning(listener),
-        source.spatial_blend,
-    );
+    let panning = 0.0;
     let left_gain = source.gain * (1.0 + panning);
     let right_gain = source.gain * (1.0 - panning);
     render_with_params(source, left_gain, right_gain, mix_buffer);
