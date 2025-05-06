@@ -1,4 +1,4 @@
-use super::{NoteDuration, Velocity, Note, PitchClass};
+use super::{PitchClass, Velocity};
 
 impl From<u8> for Velocity {
     fn from(value: u8) -> Self {

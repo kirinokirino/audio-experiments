@@ -1,3 +1,5 @@
+use std::fs::File;
+
 use audio::bus::AudioBus;
 use audio::effects::{Attenuate, Effect};
 use audio::engine::{SharedSoundContext, SharedSoundEngine};
@@ -10,6 +12,8 @@ fn main() {
         let freq = semitone_to_frequency(note);
         println!("Frequency: {}", freq);
     }
+
+    let file = File::open("sine.pcm").unwrap();
 }
 
 fn sound_engine_test() {
@@ -21,7 +25,7 @@ fn sound_engine_test() {
     let sample_rate = 44100u32;
     let seconds = 10.0;
     let total_samples = (seconds * sample_rate as f32) as usize;
-    let mut samples: Vec<f32> = Vec::with_capacity(total_samples as usize);
+    let mut samples: Vec<f32> = Vec::with_capacity(total_samples);
     {
         let frequency = 440.0;
         let amplitude = 0.05;
@@ -40,7 +44,9 @@ fn sound_engine_test() {
         }
     }
 
-    let sine_wave_buffer = audio::buffer::Buffer::new(&samples, false).unwrap();
+    let sine_wave_buffer = audio::buffer::Buffer::new(samples, false);
+
+    // let buffer = audio::buffer::Buffer::read_pcm(file, false).unwrap();
 
     {
         let mut effects_bus = AudioBus::new("Effects".to_string());
