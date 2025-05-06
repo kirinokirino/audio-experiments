@@ -1,5 +1,6 @@
 mod conversions;
 mod format;
+pub mod fileio;
 
 use core::f64;
 use std::ops::Sub;

@@ -1,4 +1,5 @@
 use std::fs::File;
+use std::io::Write;
 
 use audio::bus::AudioBus;
 use audio::effects::{Attenuate, Effect};
@@ -13,7 +14,38 @@ fn main() {
         println!("Frequency: {}", freq);
     }
 
-    let file = File::open("sine.pcm").unwrap();
+    // Create sine wave.
+    let sample_rate = 44100u32;
+    let seconds = 2.0;
+    let total_samples = (seconds * sample_rate as f32) as usize;
+    let mut samples: Vec<f32> = Vec::with_capacity(total_samples);
+    {
+        let frequency = 440.0;
+        let amplitude = 0.05;
+        for i in 0..total_samples {
+            let t1 = (i as f32 / (sample_rate as f32 * 0.25)).sin() + 1.0;
+            let t2 = ((i as f32 + 10.0) / (sample_rate as f32 * 0.25)).sin() + 1.0;
+            let sine1 = amplitude
+                * ((std::f32::consts::TAU * i as f32 * frequency) / sample_rate as f32).sin();
+            let sine2 = amplitude
+                * ((std::f32::consts::TAU * i as f32 * frequency) / sample_rate as f32).sin();
+            let left_sample = lerp(sine1, sine2, t1);
+            let right_sample = lerp(sine1, sine2, t1);
+
+            samples.push(left_sample);
+            samples.push(right_sample);
+        }
+    }
+
+    let sine_wave_buffer = audio::buffer::Buffer::new(samples, false);
+    let mut file = File::create("sine_wave.wav").unwrap();
+    let header = audio::mess::fileio::make_wav_header(
+        2,
+        sample_rate,
+        sine_wave_buffer.channel_duration_in_samples() as u32,
+    );
+    file.write_all(&header).unwrap();
+    sine_wave_buffer.write_pcm(file).unwrap();
 }
 
 fn sound_engine_test() {
