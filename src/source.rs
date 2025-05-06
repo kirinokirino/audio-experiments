@@ -2,7 +2,7 @@ use glam::Vec3;
 
 use std::{fmt::Debug, time::Duration};
 
-use crate::buffer::Buffer;
+use crate::{buffer::Buffer, SAMPLE_RATE};
 
 /// Status (state) of sound source.
 #[derive(Eq, PartialEq, Copy, Clone, Debug)]
@@ -156,7 +156,7 @@ impl SoundSource {
     /// Returns playback duration.
     pub fn playback_time(&self) -> Duration {
         if let Some(buffer) = self.buffer.as_ref() {
-            return Duration::from_secs_f64(self.playback_pos / (buffer.sample_rate as f64));
+            return Duration::from_secs_f64(self.playback_pos / (SAMPLE_RATE as f64));
         }
 
         Duration::from_secs(0)
@@ -166,7 +166,7 @@ impl SoundSource {
     pub fn set_playback_time(&mut self, time: Duration) {
         if let Some(buffer) = self.buffer.as_ref() {
             // Set absolute position first.
-            self.playback_pos = (time.as_secs_f64() * buffer.sample_rate as f64)
+            self.playback_pos = (time.as_secs_f64() * SAMPLE_RATE as f64)
                 .clamp(0.0, buffer.duration().as_secs_f64());
             // Then adjust buffer read position.
             self.buf_read_pos = self.playback_pos;

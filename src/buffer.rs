@@ -1,11 +1,12 @@
 use std::{fmt::Debug, time::Duration};
 
+use crate::SAMPLE_RATE;
+
 #[derive(Default, Clone)]
 pub struct Buffer {
     /// Interleaved decoded samples (mono sounds: L..., stereo sounds: LR...)
     pub samples: Vec<f32>,
     pub channel_count: u8,
-    pub sample_rate: u32,
     pub channel_duration_in_samples: usize,
 }
 
@@ -14,7 +15,6 @@ impl Debug for Buffer {
         f.debug_struct("Buffer")
             .field("samples", &format!("[..{} samples]", &self.samples.len()))
             .field("channel_count", &self.channel_count)
-            .field("sample_rate", &self.sample_rate)
             .field(
                 "channel_duration_in_samples",
                 &self.channel_duration_in_samples,
@@ -24,7 +24,7 @@ impl Debug for Buffer {
 }
 
 impl Buffer {
-    pub fn new(sample_rate: u32, channel_count: u8, samples: &[f32]) -> anyhow::Result<Self> {
+    pub fn new(channel_count: u8, samples: &[f32]) -> anyhow::Result<Self> {
         if channel_count < 1 || channel_count > 2 {
             Err(anyhow::anyhow!(
                 "Channel count != 1 or 2, found: {channel_count}"
@@ -40,7 +40,6 @@ impl Buffer {
                 channel_duration_in_samples: samples.len() / usize::from(channel_count),
                 samples: samples.to_owned(),
                 channel_count,
-                sample_rate,
             })
         }
     }
@@ -49,7 +48,7 @@ impl Buffer {
     #[inline]
     pub fn duration(&self) -> Duration {
         Duration::from_nanos(
-            (self.channel_duration_in_samples as u64 * 1_000_000_000u64) / self.sample_rate as u64,
+            (self.channel_duration_in_samples as u64 * 1_000_000_000u64) / SAMPLE_RATE as u64,
         )
     }
 }
