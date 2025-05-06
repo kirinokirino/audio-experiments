@@ -8,6 +8,8 @@ pub mod bus;
 pub mod effects;
 pub mod engine;
 
+pub mod mess;
+
 pub const SAMPLE_RATE: u32 = 44100;
 pub const SAMPLES_PER_CHANNEL: usize = 513 * 4;
 

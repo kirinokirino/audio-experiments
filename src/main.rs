@@ -1,10 +1,18 @@
-use audio::lerp;
 use audio::bus::AudioBus;
 use audio::effects::{Attenuate, Effect};
+use audio::engine::{SharedSoundContext, SharedSoundEngine};
+use audio::lerp;
+use audio::mess::semitone_to_frequency;
 use audio::source::{self, SoundSource};
-use audio::engine::{SharedSoundEngine, SharedSoundContext};
 
 fn main() {
+    for note in 0..80 {
+        let freq = semitone_to_frequency(note);
+        println!("Frequency: {}", freq);
+    }
+}
+
+fn sound_engine_test() {
     let engine = SharedSoundEngine::new().unwrap();
     let context = SharedSoundContext::new();
     engine.lock().context = context.clone();
@@ -33,7 +41,7 @@ fn main() {
     }
 
     let sine_wave_buffer = audio::buffer::Buffer::new(sample_rate, 2, &samples).unwrap();
-    
+
     {
         let mut effects_bus = AudioBus::new("Effects".to_string());
         let effect = Effect::Attenuate(Attenuate::new(0.25));
