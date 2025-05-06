@@ -1,5 +1,3 @@
-use glam::{Mat3, Vec3};
-
 use std::error::Error;
 use std::sync::{Arc, Mutex, MutexGuard};
 use std::time::{Duration, Instant};
@@ -11,10 +9,10 @@ use pool::Pool;
 pub mod source;
 use source::{SoundSource, Status};
 pub mod buffer;
-mod bus;
+pub mod bus;
 use bus::AudioBusGraph;
 
-mod effects;
+pub mod effects;
 
 pub const SAMPLE_RATE: u32 = 44100;
 pub const SAMPLES_PER_CHANNEL: usize = 513 * 4;

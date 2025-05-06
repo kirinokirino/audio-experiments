@@ -1,7 +1,5 @@
 use audio::{
-    lerp,
-    source::{self, SoundSource},
-    SharedSoundContext, SharedSoundEngine,
+    bus::AudioBus, effects::{Attenuate, Effect}, lerp, source::{self, SoundSource}, SharedSoundContext, SharedSoundEngine
 };
 
 fn main() {
@@ -33,12 +31,23 @@ fn main() {
     }
 
     let sine_wave_buffer = audio::buffer::Buffer::new(sample_rate, 2, &samples).unwrap();
+    
+    {
+        let mut effects_bus = AudioBus::new("Effects".to_string());
+        let effect = Effect::Attenuate(Attenuate::new(0.25));
+        effects_bus.add_effect(effect);
+        let mut context = context.lock();
+        let bus_graph = context.bus_graph_mut();
+        let master_bus = bus_graph.primary_bus_handle();
+        bus_graph.add_bus(effects_bus, master_bus);
+    }
 
     // Create generic source (without spatial effects) using that buffer.
     let mut source = SoundSource::default();
     source.buffer = Some(sine_wave_buffer);
     source.looping = true;
     source.status = source::Status::Playing;
+    source.set_bus("Effects");
     //dbg!(&source);
     let source_handle = context.lock().add_source(source);
 
@@ -57,13 +66,22 @@ fn main() {
     std::thread::sleep(std::time::Duration::from_secs(3));
 
     context.lock().source_mut(source_handle).set_pitch(0.5);
-    println!("source  {:?}", context.lock().sources().try_borrow(source_handle).unwrap());
+    println!(
+        "source  {:?}",
+        context.lock().sources().try_borrow(source_handle).unwrap()
+    );
     std::thread::sleep(std::time::Duration::from_secs(3));
     context.lock().source_mut(source_handle).set_pitch(1.5);
-    println!("source  {:?}", context.lock().sources().try_borrow(source_handle).unwrap());
+    println!(
+        "source  {:?}",
+        context.lock().sources().try_borrow(source_handle).unwrap()
+    );
     std::thread::sleep(std::time::Duration::from_secs(3));
     context.lock().source_mut(source_handle).set_pitch(0.25);
-    println!("source  {:?}", context.lock().sources().try_borrow(source_handle).unwrap());
+    println!(
+        "source  {:?}",
+        context.lock().sources().try_borrow(source_handle).unwrap()
+    );
     std::thread::sleep(std::time::Duration::from_secs(3));
     context.lock().source_mut(source_handle).set_pitch(0.75);
     std::thread::sleep(std::time::Duration::from_secs(3));
