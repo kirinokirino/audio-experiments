@@ -1,47 +1,30 @@
 use std::fs::File;
 use std::io::Write;
 
+use audio::buffer::Buffer;
 use audio::bus::AudioBus;
 use audio::effects::{Attenuate, Effect};
 use audio::engine::{SharedSoundContext, SharedSoundEngine};
 use audio::lerp;
+use audio::mess::{amplitude_over_limit, amplitude_to_db};
 use audio::mess::melody::semitone_to_frequency;
 use audio::source::{self, SoundSource};
 
 fn main() {
-    for note in 0..80 {
+    for note in 45..70 {
         let freq = semitone_to_frequency(note);
-        println!("Frequency: {}", freq);
+        println!("{note:01} Frequency: {}", freq);
     }
 
-    // Create sine wave.
-    let sample_rate = 44100u32;
-    let seconds = 2.0;
-    let total_samples = (seconds * sample_rate as f32) as usize;
-    let mut samples: Vec<f32> = Vec::with_capacity(total_samples);
-    {
-        let frequency = 440.0;
-        let amplitude = 0.05;
-        for i in 0..total_samples {
-            let t1 = (i as f32 / (sample_rate as f32 * 0.25)).sin() + 1.0;
-            let t2 = ((i as f32 + 10.0) / (sample_rate as f32 * 0.25)).sin() + 1.0;
-            let sine1 = amplitude
-                * ((std::f32::consts::TAU * i as f32 * frequency) / sample_rate as f32).sin();
-            let sine2 = amplitude
-                * ((std::f32::consts::TAU * i as f32 * frequency) / sample_rate as f32).sin();
-            let left_sample = lerp(sine1, sine2, t1);
-            let right_sample = lerp(sine1, sine2, t1);
+    let sine_wave_buffer = sin_buffer(false);
 
-            samples.push(left_sample);
-            samples.push(right_sample);
-        }
-    }
+    let wanted_change_in_amplitude = amplitude_over_limit(&sine_wave_buffer, 0.005);
+    println!("Gain: {}, {}db", wanted_change_in_amplitude, amplitude_to_db(wanted_change_in_amplitude));
 
-    let sine_wave_buffer = audio::buffer::Buffer::new(samples, false);
     let mut file = File::create("sine_wave.wav").unwrap();
     let header = audio::mess::fileio::make_wav_header(
         2,
-        sample_rate,
+        audio::SAMPLE_RATE,
         sine_wave_buffer.channel_duration_in_samples() as u32,
     );
     file.write_all(&header).unwrap();
@@ -53,32 +36,7 @@ fn sound_engine_test() {
     let context = SharedSoundContext::new();
     engine.lock().context = context.clone();
 
-    // Create sine wave.
-    let sample_rate = 44100u32;
-    let seconds = 10.0;
-    let total_samples = (seconds * sample_rate as f32) as usize;
-    let mut samples: Vec<f32> = Vec::with_capacity(total_samples);
-    {
-        let frequency = 440.0;
-        let amplitude = 0.05;
-        for i in 0..total_samples {
-            let t1 = (i as f32 / (sample_rate as f32 * 0.25)).sin() + 1.0;
-            let t2 = ((i as f32 + 10.0) / (sample_rate as f32 * 0.25)).sin() + 1.0;
-            let sine1 = amplitude
-                * ((std::f32::consts::TAU * i as f32 * frequency) / sample_rate as f32).sin();
-            let sine2 = amplitude
-                * ((std::f32::consts::TAU * i as f32 * frequency) / sample_rate as f32).sin();
-            let left_sample = lerp(sine1, sine2, t1);
-            let right_sample = lerp(sine1, sine2, t1);
-
-            samples.push(left_sample);
-            samples.push(right_sample);
-        }
-    }
-
-    let sine_wave_buffer = audio::buffer::Buffer::new(samples, false);
-
-    // let buffer = audio::buffer::Buffer::read_pcm(file, false).unwrap();
+    let sine_wave_buffer = sin_buffer(false);
 
     {
         let mut effects_bus = AudioBus::new("Effects".to_string());
@@ -131,4 +89,29 @@ fn sound_engine_test() {
     std::thread::sleep(std::time::Duration::from_secs(3));
     context.lock().source_mut(source_handle).set_pitch(0.75);
     std::thread::sleep(std::time::Duration::from_secs(3));
+}
+
+pub fn sin_buffer(mono: bool) -> Buffer {
+    let sample_rate = 44100u32;
+    let seconds = 2.0;
+    let total_samples = (seconds * sample_rate as f32) as usize;
+    let mut samples: Vec<f32> = Vec::with_capacity(total_samples);
+    {
+        let frequency = 440.0;
+        let amplitude = 0.05;
+        for i in 0..total_samples {
+            let t1 = (i as f32 / (sample_rate as f32 * 0.25)).sin() + 1.0;
+            let t2 = ((i as f32 + 10.0) / (sample_rate as f32 * 0.25)).sin() + 1.0;
+            let sine1 = amplitude
+                * ((std::f32::consts::TAU * i as f32 * frequency) / sample_rate as f32).sin();
+            let sine2 = amplitude
+                * ((std::f32::consts::TAU * i as f32 * frequency) / sample_rate as f32).sin();
+            let left_sample = lerp(sine1, sine2, t1);
+            let right_sample = lerp(sine1, sine2, t1);
+
+            samples.push(left_sample);
+            samples.push(right_sample);
+        }
+    }
+    Buffer::new(samples, mono)
 }
