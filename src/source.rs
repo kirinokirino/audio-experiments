@@ -171,7 +171,7 @@ impl SoundSource {
             // Then adjust buffer read position.
             self.buf_read_pos = self.playback_pos;
             assert!(
-                self.buf_read_pos * (buffer.channel_count as f64) < buffer.samples.len() as f64
+                self.buf_read_pos * (buffer.channel_count() as f64) < buffer.samples.len() as f64
             );
         }
     }
@@ -222,9 +222,9 @@ impl SoundSource {
             }
             // Fast-path for common case when there is no resampling and no pitch change.
             let from = self.buf_read_pos as usize;
-            let buffer_len = buffer.samples.len() / usize::from(buffer.channel_count);
+            let buffer_len = buffer.samples.len() / usize::from(buffer.channel_count());
             let rendered = (buffer_len - from).min(amount);
-            if buffer.channel_count == 2 {
+            if buffer.channel_count() == 2 {
                 for i in from..from + rendered {
                     self.frame_samples
                         .push((buffer.samples[i * 2], buffer.samples[i * 2 + 1]))
@@ -257,7 +257,7 @@ impl SoundSource {
             // buffer. This is important, otherwise there will be quiet but audible pops
             // in the output.
             let w = (self.buf_read_pos - self.buf_read_pos.floor()) as f32;
-            let cur_first_sample = if buffer.channel_count == 2 {
+            let cur_first_sample = if buffer.channel_count() == 2 {
                 (buffer.samples[0], buffer.samples[1])
             } else {
                 (buffer.samples[0], buffer.samples[0])
@@ -279,8 +279,8 @@ impl SoundSource {
         let rel_step = step as f32;
         // We skip one last element because the hot loop resampling between current and next
         // element. Last elements are appended after the hot loop.
-        let buffer_last = buffer.samples.len() / usize::from(buffer.channel_count) - 1;
-        if buffer.channel_count == 2 {
+        let buffer_last = buffer.samples.len() / usize::from(buffer.channel_count()) - 1;
+        if buffer.channel_count() == 2 {
             while rendered < amount {
                 let (idx, w) = {
                     let idx = buffer_rel_pos as usize;

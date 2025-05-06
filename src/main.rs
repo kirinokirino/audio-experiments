@@ -40,7 +40,7 @@ fn sound_engine_test() {
         }
     }
 
-    let sine_wave_buffer = audio::buffer::Buffer::new(2, &samples).unwrap();
+    let sine_wave_buffer = audio::buffer::Buffer::new(&samples, false).unwrap();
 
     {
         let mut effects_bus = AudioBus::new("Effects".to_string());
