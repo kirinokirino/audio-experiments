@@ -1,7 +1,7 @@
 
 use std::fmt::{Debug, Display};
 
-use super::{NoteDuration, Velocity, Note, PitchClass};
+use crate::mess::melody::{NoteDuration, Velocity, Note, PitchClass};
 
 impl Debug for NoteDuration {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {

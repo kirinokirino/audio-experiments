@@ -5,7 +5,7 @@ use audio::bus::AudioBus;
 use audio::effects::{Attenuate, Effect};
 use audio::engine::{SharedSoundContext, SharedSoundEngine};
 use audio::lerp;
-use audio::mess::semitone_to_frequency;
+use audio::mess::melody::semitone_to_frequency;
 use audio::source::{self, SoundSource};
 
 fn main() {

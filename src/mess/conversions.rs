@@ -1,8 +1,8 @@
-use super::{PitchClass, Velocity};
+use crate::mess::melody::{PitchClass, Velocity};
 
 impl From<u8> for Velocity {
     fn from(value: u8) -> Self {
-        Self(value as f32 / 127.0)
+        Self::new(value as f32 / 127.0)
     }
 }
 
