@@ -1,6 +1,8 @@
-use audio::{
-    bus::AudioBus, effects::{Attenuate, Effect}, lerp, source::{self, SoundSource}, SharedSoundContext, SharedSoundEngine
-};
+use audio::lerp;
+use audio::bus::AudioBus;
+use audio::effects::{Attenuate, Effect};
+use audio::source::{self, SoundSource};
+use audio::engine::{SharedSoundEngine, SharedSoundContext};
 
 fn main() {
     let engine = SharedSoundEngine::new().unwrap();
@@ -53,8 +55,6 @@ fn main() {
 
     {
         let sound_state = context.lock();
-        let source = sound_state.sources().try_borrow(source_handle).unwrap();
-        //println!("source  {:?}", source);
         println!(
             "full_render_duration {:?}",
             sound_state.full_render_duration()
