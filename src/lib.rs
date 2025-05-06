@@ -82,7 +82,6 @@ impl SharedSoundContext {
         Self {
             state: Some(Arc::new(Mutex::new(SoundContext {
                 sources: Pool::new(),
-                listener: Listener::new(),
                 render_duration: Default::default(),
                 bus_graph: AudioBusGraph::new(),
                 paused: false,
@@ -99,7 +98,6 @@ impl SharedSoundContext {
 #[derive(Default, Debug, Clone)]
 pub struct SoundContext {
     sources: Pool<SoundSource>,
-    listener: Listener,
     render_duration: Duration,
     bus_graph: AudioBusGraph,
     pub paused: bool,
@@ -150,16 +148,6 @@ impl SoundContext {
         self.sources.try_borrow_mut(handle)
     }
 
-    /// Returns shared reference to listener. Engine has only one listener.
-    pub fn listener(&self) -> &Listener {
-        &self.listener
-    }
-
-    /// Returns mutable reference to listener. Engine has only one listener.
-    pub fn listener_mut(&mut self) -> &mut Listener {
-        &mut self.listener
-    }
-
     /// Returns a reference to the audio bus graph.
     pub fn bus_graph_ref(&self) -> &AudioBusGraph {
         &self.bus_graph
@@ -184,6 +172,7 @@ impl SoundContext {
             }
         }
     }
+
     pub fn render(&mut self, output_device_buffer: &mut [(f32, f32)]) {
         // Clear output first so we can detect if audio is actually being written
         output_device_buffer.fill((0.0, 0.0));
@@ -224,7 +213,7 @@ impl SoundContext {
                 source.render(output_device_buffer.len());
                 eprintln!("[Audio]  Source rendered {} samples", source.frame_samples().len());
     
-                render_source_default(source, &self.listener, bus_input_buffer);
+                render_source_default(source, bus_input_buffer);
                 
                 // Debug: Check if bus buffer was written to
                 let written_samples = bus_input_buffer.iter()
@@ -247,99 +236,6 @@ impl SoundContext {
     
         self.render_duration = Instant::now().duration_since(last_time);
         eprintln!("[Audio] Render completed in {:?}", self.render_duration);
-    }
-}
-
-/// See module docs.
-#[derive(Debug, Clone)]
-pub struct Listener {
-    basis: Mat3,
-    position: Vec3,
-}
-
-impl Default for Listener {
-    fn default() -> Self {
-        Self::new()
-    }
-}
-
-impl Listener {
-    pub fn new() -> Self {
-        Self {
-            basis: Mat3::IDENTITY,
-            position: Vec3::new(0.0, 0.0, 0.0),
-        }
-    }
-
-    /// Sets new basis from given vectors in left-handed coordinate system.
-    /// See `set_basis` for more info.
-    pub fn set_orientation_lh(&mut self, look: Vec3, up: Vec3) {
-        self.basis = Mat3::from_cols(look.cross(up), up, look)
-    }
-
-    /// Sets new basis from given vectors in right-handed coordinate system.
-    /// See `set_basis` for more info.
-    pub fn set_orientation_rh(&mut self, look: Vec3, up: Vec3) {
-        self.basis = Mat3::from_cols(up.cross(look), up, look)
-    }
-
-    /// Sets arbitrary basis. Basis defines orientation of the listener in space.
-    /// In your application you can take basis of camera in world coordinates and
-    /// pass it to this method. If you using HRTF, make sure your basis is in
-    /// right-handed coordinate system! You can make fake right-handed basis from
-    /// left handed, by inverting Z axis. It is fake because it will work only for
-    /// positions (engine interested in positions only), but not for rotation, shear
-    /// etc.
-    ///
-    /// # Notes
-    ///
-    /// Basis must have mutually perpendicular axes.
-    ///
-    /// ```
-    /// use fyrox_sound::listener::Listener;
-    /// use fyrox_sound::algebra::{Mat3, UnitQuaternion, Vec3};
-    /// use fyrox_sound::math::{Matrix4Ext};
-    ///
-    /// fn orient_listener(listener: &mut Listener) {
-    ///     let basis = UnitQuaternion::from_axis_angle(&Vec3::y_axis(), 45.0f32.to_radians()).to_homogeneous().basis();
-    ///     listener.set_basis(basis);
-    /// }
-    /// ```
-    pub fn set_basis(&mut self, matrix: Mat3) {
-        self.basis = matrix;
-    }
-
-    /// Returns shared reference to current basis.
-    pub fn basis(&self) -> &Mat3 {
-        &self.basis
-    }
-
-    /// Sets current position in world space.
-    pub fn set_position(&mut self, position: Vec3) {
-        self.position = position;
-    }
-
-    /// Returns position of listener.
-    pub fn position(&self) -> Vec3 {
-        self.position
-    }
-
-    /// Returns up axis from basis. up
-    pub fn up_axis(&self) -> Vec3 {
-        let m = self.basis.to_cols_array();
-        Vec3::new(m[3], m[4], m[5])
-    }
-
-    /// Returns look axis from basis. look
-    pub fn look_axis(&self) -> Vec3 {
-        let m = self.basis.to_cols_array();
-        Vec3::new(m[6], m[7], m[8])
-    }
-
-    /// Returns ear axis from basis. side
-    pub fn ear_axis(&self) -> Vec3 {
-        let m = self.basis.to_cols_array();
-        Vec3::new(m[0], m[1], m[2])
     }
 }
 
@@ -378,7 +274,6 @@ fn render_with_params(
 
 pub fn render_source_default(
     source: &mut SoundSource,
-    listener: &Listener,
     mix_buffer: &mut [(f32, f32)],
 ) {
     let panning = 0.0;

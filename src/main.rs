@@ -46,7 +46,6 @@ fn main() {
         let sound_state = context.lock();
         let source = sound_state.sources().try_borrow(source_handle).unwrap();
         //println!("source  {:?}", source);
-        println!("listener {:?}", sound_state.listener());
         println!(
             "full_render_duration {:?}",
             sound_state.full_render_duration()
@@ -60,7 +59,7 @@ fn main() {
     context.lock().source_mut(source_handle).set_pitch(0.5);
     println!("source  {:?}", context.lock().sources().try_borrow(source_handle).unwrap());
     std::thread::sleep(std::time::Duration::from_secs(3));
-    context.lock().source_mut(source_handle).set_pitch(0.0);
+    context.lock().source_mut(source_handle).set_pitch(1.5);
     println!("source  {:?}", context.lock().sources().try_borrow(source_handle).unwrap());
     std::thread::sleep(std::time::Duration::from_secs(3));
     context.lock().source_mut(source_handle).set_pitch(0.25);
@@ -69,10 +68,3 @@ fn main() {
     context.lock().source_mut(source_handle).set_pitch(0.75);
     std::thread::sleep(std::time::Duration::from_secs(3));
 }
-
-// sources: Pool<SoundSource>,
-// listener: Listener,
-// render_duration: Duration,
-// renderer: Renderer,
-// bus_graph: AudioBusGraph,
-// paused: bool,
