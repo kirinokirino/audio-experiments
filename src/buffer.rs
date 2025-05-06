@@ -1,7 +1,4 @@
-use std::{
-    fmt::Debug,
-    time::Duration,
-};
+use std::{fmt::Debug, time::Duration};
 
 use crate::SAMPLE_RATE;
 
@@ -29,6 +26,16 @@ impl Buffer {
         Self {
             samples: samples.to_owned(),
             is_mono,
+        }
+    }
+
+    /// Applies a function to every sample in-place
+    pub fn apply<F>(&mut self, mut f: F)
+    where
+        F: FnMut(f32) -> f32,
+    {
+        for s in &mut self.samples {
+            *s = f(*s);
         }
     }
 

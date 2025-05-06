@@ -16,9 +16,12 @@ fn main() {
         println!("{note:01} Frequency: {}", freq);
     }
 
-    let sine_wave_buffer = sin_buffer(false);
+    let mut sine_wave_buffer = sin_buffer(false);
 
-    let wanted_change_in_amplitude = amplitude_over_limit(&sine_wave_buffer, 0.005);
+    let mut wanted_change_in_amplitude = amplitude_over_limit(&sine_wave_buffer, 0.005);
+    println!("Gain: {}, {}db", wanted_change_in_amplitude, amplitude_to_db(wanted_change_in_amplitude));
+    sine_wave_buffer.apply(|s| s * wanted_change_in_amplitude);
+    wanted_change_in_amplitude = amplitude_over_limit(&sine_wave_buffer, 0.005);
     println!("Gain: {}, {}db", wanted_change_in_amplitude, amplitude_to_db(wanted_change_in_amplitude));
 
     let mut file = File::create("sine_wave.wav").unwrap();

@@ -15,12 +15,15 @@ pub fn db_to_amplitude(db: f32) -> f32 {
 pub fn amplitude_over_limit(buffer: &Buffer, limit: f32) -> f32 {
     let mut max = 0.0;
     for sample in &buffer.samples {
-        if sample.abs() > max {
-            max = sample.abs();
+        let abs = sample.abs();
+        if abs > max {
+            max = abs;
         }
     }
+
     if max > limit {
-        return max - limit;
+        limit / max // multiplier to bring `max` down to `limit`
+    } else {
+        1.0 // no scaling needed
     }
-    0.0
 }
