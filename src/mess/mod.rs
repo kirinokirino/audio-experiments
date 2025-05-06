@@ -4,6 +4,7 @@ mod conversions;
 pub mod fileio;
 mod format;
 pub mod melody;
+pub mod delay;
 
 pub fn amplitude_to_db(amplitude: f32) -> f32 {
     20.0 * amplitude.log10()

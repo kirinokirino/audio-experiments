@@ -6,6 +6,7 @@ use audio::bus::AudioBus;
 use audio::effects::{Attenuate, Effect};
 use audio::engine::{SharedSoundContext, SharedSoundEngine};
 use audio::lerp;
+use audio::mess::delay::Delay;
 use audio::mess::{amplitude_over_limit, amplitude_to_db};
 use audio::mess::melody::semitone_to_frequency;
 use audio::source::{self, SoundSource};
@@ -23,6 +24,8 @@ fn main() {
     sine_wave_buffer.apply(|s| s * wanted_change_in_amplitude);
     wanted_change_in_amplitude = amplitude_over_limit(&sine_wave_buffer, 0.005);
     println!("Gain: {}, {}db", wanted_change_in_amplitude, amplitude_to_db(wanted_change_in_amplitude));
+    let mut delay = Delay::new(100);
+    sine_wave_buffer.apply(|s| delay.process(s));
 
     let mut file = File::create("sine_wave.wav").unwrap();
     let header = audio::mess::fileio::make_wav_header(
