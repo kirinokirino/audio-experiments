@@ -8,7 +8,7 @@ pub mod effects;
 pub use effects::Gain;
 
 pub mod sources;
-pub use sources::Sine;
+pub use sources::{Sine, Square};
 
 pub struct Pipeline {
     source: Box<dyn Source>,

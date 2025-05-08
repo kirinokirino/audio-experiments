@@ -11,11 +11,11 @@ use audio::mess::delay::Delay;
 use audio::mess::{peak, amplitude_to_db};
 use audio::mess::melody::semitone_to_frequency;
 
-use audio::{Pipeline, Gain, Sine};
+use audio::{Pipeline, Gain, Square};
 
 fn main() {
     use audio::Buffer;
-    let mut chain = Pipeline::new(Sine::new(440.0));
+    let mut chain = Pipeline::new(Square::new(440.0));
     chain.add_effect(Gain::new(0.05));
 
     let mut buffer = Buffer::from_source(&mut chain);
