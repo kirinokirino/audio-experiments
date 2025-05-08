@@ -25,7 +25,7 @@ impl Square {
 
 impl Source for Square {
     fn next(&mut self) -> f32 {
-        self.phase = self.phase_increment % 1.0;
+        self.phase = (self.phase + self.phase_increment) % 1.0;
         if self.phase < 0.5 {
             1.0
         } else {

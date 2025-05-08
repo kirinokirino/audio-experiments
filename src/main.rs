@@ -6,20 +6,28 @@ use audio::dissection::effects::{Attenuate, Effect};
 use audio::dissection::engine::{SharedSoundContext, SharedSoundEngine};
 use audio::dissection::source::{self, SoundSource};
 
-use audio::lerp;
+use audio::mess::{amplitude_to_db, db_to_amplitude};
 use audio::mess::delay::Delay;
-use audio::mess::{peak, amplitude_to_db};
 use audio::mess::melody::semitone_to_frequency;
+use audio::{lerp, SAMPLE_RATE};
 
-use audio::{Pipeline, Gain, Square};
+use audio::{Gain, Pipeline, Square};
 
 fn main() {
     use audio::Buffer;
     let mut chain = Pipeline::new(Square::new(440.0));
     chain.add_effect(Gain::new(0.05));
 
-    let mut buffer = Buffer::from_source(&mut chain);
-    buffer.normalize(0.5);
+    let mut buffer = Buffer::from_source(&mut chain, 3.0);
+    for sample in buffer.iter().take((SAMPLE_RATE / 440) as usize * 2) {
+        print!("{sample:0.02} ");
+    }
+    println!();
+    let mut peak = audio::peak(&buffer);
+    println!("Peak: {}, {}db", peak, amplitude_to_db(peak));
+    buffer.normalize(db_to_amplitude(-40.0));
+    peak = audio::peak(&buffer);
+    println!("Peak: {}, {}db", peak, amplitude_to_db(peak));
 }
 
 fn mess_test() {
@@ -31,13 +39,21 @@ fn mess_test() {
 
     let mut sine_wave_buffer = sin_buffer(false);
 
-    let mut max_amplitude = peak(&sine_wave_buffer);
+    let mut max_amplitude = audio::peak(&sine_wave_buffer);
     let wanted_change_in_amplitude = 0.005 / max_amplitude;
-    println!("Gain: {}, {}db", wanted_change_in_amplitude, amplitude_to_db(wanted_change_in_amplitude));
+    println!(
+        "Gain: {}, {}db",
+        wanted_change_in_amplitude,
+        amplitude_to_db(wanted_change_in_amplitude)
+    );
 
     sine_wave_buffer.apply(|s| s * wanted_change_in_amplitude);
-    max_amplitude = peak(&sine_wave_buffer);
-    println!("Gain: {}, {}db", max_amplitude, amplitude_to_db(max_amplitude));
+    max_amplitude = audio::peak(&sine_wave_buffer);
+    println!(
+        "Gain: {}, {}db",
+        max_amplitude,
+        amplitude_to_db(max_amplitude)
+    );
 
     let mut delay = Delay::new(100);
     sine_wave_buffer.apply(|s| delay.process(s));
