@@ -1,7 +1,6 @@
 use std::fs::File;
 use std::io::Write;
 
-use audio::dissection::buffer::Buffer;
 use audio::dissection::bus::AudioBus;
 use audio::dissection::effects::{Attenuate, Effect};
 use audio::dissection::engine::{SharedSoundContext, SharedSoundEngine};
@@ -12,22 +11,19 @@ use audio::mess::delay::Delay;
 use audio::mess::{peak, amplitude_to_db};
 use audio::mess::melody::semitone_to_frequency;
 
-// use audio::{AudioChain, Buffer, Gain, Sine, normalize_to_peak};
-
-// fn main() {
-//     let mut chain = AudioChain::new(Sine::new(440.0));
-//     chain.push(Gain::new(0.05));
-
-//     let mut buffer = Buffer::from_source(&mut chain, 2.0, 44100);
-//     normalize_to_peak(&mut buffer, 1.0);
-// }
+use audio::{Pipeline, Gain, Sine};
 
 fn main() {
-    mess_test();
-    sound_engine_test();
+    use audio::Buffer;
+    let mut chain = Pipeline::new(Sine::new(440.0));
+    chain.add_effect(Gain::new(0.05));
+
+    let mut buffer = Buffer::from_source(&mut chain);
+    buffer.normalize(0.5);
 }
 
 fn mess_test() {
+    use audio::dissection::buffer::Buffer;
     for note in 45..70 {
         let freq = semitone_to_frequency(note);
         println!("{note:01} Frequency: {}", freq);
@@ -116,6 +112,7 @@ fn sound_engine_test() {
     std::thread::sleep(std::time::Duration::from_secs(3));
 }
 
+use audio::dissection::buffer::Buffer;
 pub fn sin_buffer(mono: bool) -> Buffer {
     let sample_rate = 44100u32;
     let seconds = 2.0;
