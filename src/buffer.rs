@@ -22,7 +22,7 @@ impl Buffer {
     }
 
     pub fn normalize(&mut self, max_amplitude: f32) {
-        let current_peak = crate::peak(&self);
+        let current_peak = crate::peak(self);
         if current_peak > 0.00001 {
             let scale = max_amplitude / current_peak;
             self.apply(|sample| sample * scale);
@@ -68,7 +68,7 @@ impl DerefMut for Buffer {
 
 impl Debug for Buffer {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.debug_struct(format!("Buffer").as_str())
+        f.debug_struct("Buffer")
             .field("samples", &format!("[..{} samples]", &self.samples.len()))
             .finish()
     }

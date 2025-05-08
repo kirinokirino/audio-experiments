@@ -23,15 +23,16 @@ fn main() {
         print!("{sample:0.02} ");
     }
     println!();
+
     let mut peak = audio::peak(&buffer);
     println!("Peak: {}, {}db", peak, amplitude_to_db(peak));
+
     buffer.normalize(db_to_amplitude(-40.0));
     peak = audio::peak(&buffer);
     println!("Peak: {}, {}db", peak, amplitude_to_db(peak));
 }
 
 fn mess_test() {
-    use audio::dissection::buffer::Buffer;
     for note in 45..70 {
         let freq = semitone_to_frequency(note);
         println!("{note:01} Frequency: {}", freq);
