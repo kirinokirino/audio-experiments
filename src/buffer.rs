@@ -1,4 +1,6 @@
-use std::{fmt::Debug, time::Duration};
+use std::ops::{Deref, DerefMut};
+use std::fmt::Debug;
+use std::time::Duration;
 
 use crate::SAMPLE_RATE;
 
@@ -15,6 +17,20 @@ impl Debug for Buffer {
         f.debug_struct(format!("Buffer ({channels})").as_str())
             .field("samples", &format!("[..{} samples]", &self.samples.len()))
             .finish()
+    }
+}
+
+impl Deref for Buffer {
+    type Target = [f32];
+
+    fn deref(&self) -> &Self::Target {
+        &self.samples
+    }
+}
+
+impl DerefMut for Buffer {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        &mut self.samples
     }
 }
 

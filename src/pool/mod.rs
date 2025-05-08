@@ -9,11 +9,11 @@
 //!
 //! 1) We can check if a handle is valid before accessing the object it might point to.
 //! 2) We can ensure the handle we're using is still valid for the object it points to
-//! to make sure it hasn't been replaced with a different object on the same position.
-//! Each handle stores a special field called generation which is shared across the entry
-//! and the handle, so the handle is valid if these fields are the same on both the entry
-//! and the handle. This protects from situations where you have a handle that has
-//! a valid index of a record, but the payload in this record has been replaced.
+//!     to make sure it hasn't been replaced with a different object on the same position.
+//!     Each handle stores a special field called generation which is shared across the entry
+//!     and the handle, so the handle is valid if these fields are the same on both the entry
+//!     and the handle. This protects from situations where you have a handle that has
+//!     a valid index of a record, but the payload in this record has been replaced.
 //!
 //! Contiguous memory block increases efficiency of memory operations - the CPU will
 //! load portions of data into its cache piece by piece, it will be free from any

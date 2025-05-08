@@ -155,7 +155,7 @@ impl SoundSource {
 
     /// Returns playback duration.
     pub fn playback_time(&self) -> Duration {
-        if let Some(buffer) = self.buffer.as_ref() {
+        if let Some(_buffer) = self.buffer.as_ref() {
             return Duration::from_secs_f64(self.playback_pos / (SAMPLE_RATE as f64));
         }
 
