@@ -1,4 +1,4 @@
-use crate::pool::INVALID_GENERATION;
+use crate::dissection::pool::INVALID_GENERATION;
 use std::{
     cmp::Ordering,
     fmt::{Debug, Display, Formatter},
@@ -309,7 +309,7 @@ impl<T> Debug for Handle<T> {
 
 #[cfg(test)]
 mod test {
-    use crate::pool::{AtomicHandle, ErasedHandle, Handle, INVALID_GENERATION};
+    use crate::dissection::pool::{AtomicHandle, ErasedHandle, Handle, INVALID_GENERATION};
 
     #[test]
     fn test_handle_u128_encode_decode() {

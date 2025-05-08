@@ -1,4 +1,4 @@
-use crate::buffer::Buffer;
+use crate::dissection::buffer::Buffer;
 
 mod conversions;
 pub mod delay;

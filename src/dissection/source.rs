@@ -2,7 +2,8 @@ use glam::Vec3;
 
 use std::{fmt::Debug, time::Duration};
 
-use crate::{buffer::Buffer, SAMPLE_RATE};
+use super::buffer::Buffer;
+use crate::SAMPLE_RATE;
 
 /// Status (state) of sound source.
 #[derive(Eq, PartialEq, Copy, Clone, Debug)]

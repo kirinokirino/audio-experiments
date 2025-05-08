@@ -1,6 +1,7 @@
 use std::io::{Read, Write};
 
-use crate::{buffer::Buffer, SAMPLE_RATE};
+use crate::dissection::buffer::Buffer;
+use crate::SAMPLE_RATE;
 
 pub fn make_wav_header(num_channels: u16, sample_rate: u32, num_frames: u32) -> [u8; 44] {
     let bits_per_sample = 32u16;

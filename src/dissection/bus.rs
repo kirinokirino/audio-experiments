@@ -1,8 +1,8 @@
 //! Everything related to audio buses and audio bus graphs. See docs of [`AudioBus`] and [`AudioBusGraph`]
 //! for more info and examples
 
-use crate::effects::{Effect, EffectRenderTrait};
-use crate::pool::{Handle, Pool, Ticket};
+use crate::dissection::effects::{Effect, EffectRenderTrait};
+use crate::dissection::pool::{Handle, Pool, Ticket};
 use std::fmt::{Debug, Formatter};
 
 #[derive(Default, Clone)]
@@ -494,7 +494,7 @@ impl AudioBusGraph {
 
 #[cfg(test)]
 mod test {
-    use crate::{
+    use crate::dissection::{
         bus::{AudioBus, AudioBusGraph},
         effects::{Attenuate, Effect},
     };

@@ -1,17 +1,33 @@
 use std::fs::File;
 use std::io::Write;
 
-use audio::buffer::Buffer;
-use audio::bus::AudioBus;
-use audio::effects::{Attenuate, Effect};
-use audio::engine::{SharedSoundContext, SharedSoundEngine};
+use audio::dissection::buffer::Buffer;
+use audio::dissection::bus::AudioBus;
+use audio::dissection::effects::{Attenuate, Effect};
+use audio::dissection::engine::{SharedSoundContext, SharedSoundEngine};
+use audio::dissection::source::{self, SoundSource};
+
 use audio::lerp;
 use audio::mess::delay::Delay;
 use audio::mess::{peak, amplitude_to_db};
 use audio::mess::melody::semitone_to_frequency;
-use audio::source::{self, SoundSource};
+
+// use audio::{AudioChain, Buffer, Gain, Sine, normalize_to_peak};
+
+// fn main() {
+//     let mut chain = AudioChain::new(Sine::new(440.0));
+//     chain.push(Gain::new(0.05));
+
+//     let mut buffer = Buffer::from_source(&mut chain, 2.0, 44100);
+//     normalize_to_peak(&mut buffer, 1.0);
+// }
 
 fn main() {
+    mess_test();
+    sound_engine_test();
+}
+
+fn mess_test() {
     for note in 45..70 {
         let freq = semitone_to_frequency(note);
         println!("{note:01} Frequency: {}", freq);

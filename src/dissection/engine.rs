@@ -3,10 +3,10 @@ use std::error::Error;
 use std::sync::{Arc, Mutex, MutexGuard};
 use std::time::{Duration, Instant};
 
-use crate::pool::handle::Handle;
-use crate::pool::Pool;
-use crate::source::{SoundSource, Status};
-use crate::bus::AudioBusGraph;
+use crate::dissection::pool::handle::Handle;
+use crate::dissection::pool::Pool;
+use crate::dissection::source::{SoundSource, Status};
+use crate::dissection::bus::AudioBusGraph;
 use crate::{lerp, SAMPLES_PER_CHANNEL, SAMPLE_RATE};
 
 pub struct SoundEngine {

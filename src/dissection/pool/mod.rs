@@ -1345,7 +1345,7 @@ where
 
 #[cfg(test)]
 mod test {
-    use crate::pool::{AtomicHandle, Handle, Pool, INVALID_GENERATION};
+    use crate::dissection::pool::{AtomicHandle, Handle, Pool, INVALID_GENERATION};
 
     #[test]
     fn pool_sanity_tests() {

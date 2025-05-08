@@ -362,7 +362,7 @@ where
 #[cfg(test)]
 mod test {
     use super::MultiBorrowError;
-    use crate::pool::Pool;
+    use super::Pool;
 
     #[derive(PartialEq, Clone, Copy, Debug)]
     struct MyPayload(u32);
